@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+  <title>Create Account — PeakForm</title>
+  <meta name="description" content="Create your free PeakForm account and start tracking your strength training journey.">
+  <link rel="icon" href="/static/assets/logo.png">
+  <link rel="stylesheet" href="/static/css/main.css">
+  <link rel="stylesheet" href="/static/css/components.css">
+</head>
+<body class="auth-page">
+  <div class="auth-card" style="max-width:480px">
+    <div class="auth-logo">
+      <div style="font-size:2.2rem;margin-bottom:8px">🏔️</div>
+      <div class="auth-logo-text">PeakForm</div>
+      <div style="font-size:.82rem;color:var(--text-muted);margin-top:4px">Create your free account</div>
+    </div>
+    <div class="auth-title">Start your journey</div>
+    <div class="auth-subtitle">Join PeakForm and track your strength training</div>
+
+    <form id="register-form" onsubmit="handleRegister(event)" novalidate>
+      <div class="form-group mb-md">
+        <label class="form-label" for="display_name">Name / Handle</label>
+        <input type="text" id="display_name" class="form-control" placeholder="e.g. Alex or IronAlex" autocomplete="name">
+      </div>
+      <div class="form-group mb-md">
+        <label class="form-label" for="email">Email</label>
+        <input type="email" id="email" class="form-control" placeholder="you@email.com" autocomplete="email">
+      </div>
+      <div class="form-group mb-md">
+        <label class="form-label" for="password">Password</label>
+        <div style="position:relative">
+          <input type="password" id="password" class="form-control" placeholder="Min 8 chars, mixed case + number" autocomplete="new-password">
+          <button type="button" onclick="togglePW()" style="position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:var(--text-muted)" aria-label="Toggle password">👁</button>
+        </div>
+      </div>
+      <div class="form-group mb-lg">
+        <label class="form-label">Training Style</label>
+        <div class="training-type-grid">
+          <label class="type-option">
+            <input type="radio" name="training_type" value="gym" checked>
+            <div class="type-card">🏋️<span>Gym</span></div>
+          </label>
+          <label class="type-option">
+            <input type="radio" name="training_type" value="home">
+            <div class="type-card">🏠<span>Home</span></div>
+          </label>
+          <label class="type-option">
+            <input type="radio" name="training_type" value="calisthenics">
+            <div class="type-card">🤸<span>Calisthenics</span></div>
+          </label>
+          <label class="type-option">
+            <input type="radio" name="training_type" value="hybrid">
+            <div class="type-card">⚡<span>Hybrid</span></div>
+          </label>
+        </div>
+      </div>
+      <button type="submit" class="btn btn-primary btn-full btn-lg" id="register-btn">Create Account</button>
+    </form>
+
+    <div style="text-align:center;margin-top:var(--space-lg);font-size:.85rem;color:var(--text-muted)">
+      Already have an account? <a href="/login.html">Sign in →</a>
+    </div>
+  </div>
+
+  <div id="toast-container" class="toast-container"></div>
+  <script src="/static/js/utils.js"></script>
+  <script src="/static/js/api.js"></script>
+  <script>
+    if (isLoggedIn()) window.location.href = '/dashboard.html';
+
+    function togglePW() {
+      const i = document.getElementById('password');
+      i.type = i.type === 'password' ? 'text' : 'password';
+    }
+
+    async function handleRegister(e) {
+      e.preventDefault();
+      const btn = document.getElementById('register-btn');
+      const form = document.getElementById('register-form');
+      clearFieldErrors(form);
+
+      btn.textContent = 'Creating account...'; btn.disabled = true;
+
+      const payload = {
+        display_name:  document.getElementById('display_name').value.trim(),
+        email:         document.getElementById('email').value.trim(),
+        password:      document.getElementById('password').value,
+        training_type: document.querySelector('input[name="training_type"]:checked')?.value || 'gym',
+      };
+
+      const res = await apiFetch('/api/auth/register', { method:'POST', body: payload });
+      btn.textContent = 'Create Account'; btn.disabled = false;
+
+      if (res._error) {
+        if (res.errors) showFieldErrors(res.errors);
+        return;
+      }
+
+      saveAuth(res.token, {
+        user_id:             res.user_id,
+        email:               res.email,
+        role:                res.role,
+        display_name:        res.display_name,
+        training_type:       payload.training_type,
+        onboarding_complete: false,
+      });
+
+      showToast('Account created! Let\'s set up your profile.', 'success');
+      setTimeout(() => { window.location.href = '/onboarding.html'; }, 800);
+    }
+  </script>
+  <style>
+    .training-type-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr 1fr;
+      gap: 8px;
+    }
+    .type-option input { display: none; }
+    .type-card {
+      display: flex; flex-direction: column; align-items: center; gap: 4px;
+      padding: 12px 8px;
+      background: var(--bg-input);
+      border: 2px solid var(--bg-border);
+      border-radius: var(--radius-md);
+      cursor: pointer;
+      font-size: .85rem;
+      color: var(--text-muted);
+      transition: all var(--transition);
+    }
+    .type-card span { font-size: .78rem; }
+    .type-option input:checked + .type-card {
+      border-color: var(--violet);
+      background: rgba(139,92,246,.12);
+      color: var(--violet-l);
+    }
+    .type-card:hover { border-color: var(--violet-d); }
+    @media (max-width: 400px) {
+      .training-type-grid { grid-template-columns: 1fr 1fr; }
+    }
+  </style>
+</body>
+</html>

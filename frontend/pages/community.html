@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+  <title>Community — Reprise</title>
+  <link rel="icon" href="/static/assets/logo.png">
+  <link rel="stylesheet" href="/static/css/main.css">
+  <link rel="stylesheet" href="/static/css/components.css">
+  <link rel="stylesheet" href="/static/css/workout.css">
+</head>
+<body class="app-layout">
+  <button class="mobile-menu-btn" id="mobile-menu-btn">☰</button>
+  <div class="sidebar-overlay" id="sidebar-overlay"></div>
+  <aside class="sidebar" id="sidebar"></aside>
+
+  <main class="main-content">
+    <div class="page-header flex-between">
+      <div><h1>Community Feed</h1><p>Share your wins, ask questions, stay motivated</p></div>
+      <a href="/community-chat.html" class="btn btn-outline">💬 Live Chat</a>
+    </div>
+
+    <!-- Post composer -->
+    <div class="card mb-xl">
+      <div class="form-group mb-md">
+        <textarea id="post-content" class="form-control" placeholder="What's your training win today? Share a PR, ask a question, post a tip..." rows="3"></textarea>
+      </div>
+      <div class="flex-between">
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="type-pill" data-type="update" onclick="setPostType(this)">📢 Update</button>
+          <button class="type-pill selected" data-type="achievement" onclick="setPostType(this)">🏆 Achievement</button>
+          <button class="type-pill" data-type="question" onclick="setPostType(this)">❓ Question</button>
+          <button class="type-pill" data-type="tip" onclick="setPostType(this)">💡 Tip</button>
+        </div>
+        <button class="btn btn-primary" onclick="submitPost()">Post</button>
+      </div>
+    </div>
+
+    <!-- Feed -->
+    <div id="feed"></div>
+    <div id="load-more" style="text-align:center;padding:var(--space-lg);display:none">
+      <button class="btn btn-outline" onclick="loadMore()">Load More</button>
+    </div>
+  </main>
+
+  <!-- Comments modal -->
+  <div class="modal-backdrop" id="comments-modal" style="display:none" onclick="if(event.target===this)closeModal('comments-modal')">
+    <div class="modal modal-lg">
+      <div class="modal-header">
+        <h3 class="modal-title">Comments</h3>
+        <button class="modal-close" onclick="closeModal('comments-modal')">✕</button>
+      </div>
+      <div id="comments-list" style="max-height:320px;overflow-y:auto;margin-bottom:var(--space-lg)"></div>
+      <div style="display:flex;gap:8px">
+        <input type="hidden" id="comment-post-id">
+        <input type="text" id="comment-text" class="form-control" placeholder="Add a comment..." onkeydown="if(event.key==='Enter')submitComment()">
+        <button class="btn btn-primary" onclick="submitComment()">Reply</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast-container" class="toast-container"></div>
+  <script src="/static/js/utils.js"></script>
+  <script src="/static/js/api.js"></script>
+  <script>
+    let postType = 'achievement', PAGE_OFFSET = 0, PAGE_LIMIT = 20;
+    const user = getUser() || {};
+
+    onReady(async () => { requireAuth(); renderSidebar(); initMobileSidebar(); await loadFeed(true); });
+
+    function setPostType(btn) {
+      document.querySelectorAll('.type-pill').forEach(p=>p.classList.remove('selected'));
+      btn.classList.add('selected');
+      postType = btn.dataset.type;
+    }
+
+    async function loadFeed(reset = false) {
+      if (reset) { PAGE_OFFSET = 0; document.getElementById('feed').innerHTML=''; }
+      const data = await apiFetch(`/api/community/feed?limit=${PAGE_LIMIT}&offset=${PAGE_OFFSET}`, {}, false);
+      if (data._error) return;
+      PAGE_OFFSET += data.length;
+      data.forEach(p => appendPost(p));
+      document.getElementById('load-more').style.display = data.length === PAGE_LIMIT ? 'block' : 'none';
+    }
+
+    function loadMore() { loadFeed(false); }
+
+    const POST_TYPE_ICONS = { update:'📢', achievement:'🏆', question:'❓', tip:'💡', progress_photo:'📸' };
+    const POST_TYPE_COLORS = { achievement:'badge-amber', question:'badge-teal', tip:'badge-green', update:'badge-violet', progress_photo:'badge-violet' };
+
+    function appendPost(p) {
+      const div = document.createElement('div');
+      div.className = 'post-card';
+      div.id = `post-${p.id}`;
+      const initials = (p.display_name || p.email || '?').substring(0,2).toUpperCase();
+      const isOwn = p.user_id === user.user_id;
+      div.innerHTML = `
+        <div class="post-header">
+          <div class="post-avatar">${initials}</div>
+          <div class="post-meta">
+            <div class="post-author">${p.display_name || p.email}</div>
+            <div class="post-time">${formatTimeAgo(p.created_at)} · <span class="badge ${POST_TYPE_COLORS[p.post_type]||'badge-muted'}" style="font-size:.65rem">${POST_TYPE_ICONS[p.post_type]||''} ${p.post_type}</span></div>
+          </div>
+          ${isOwn ? `<button class="btn btn-ghost btn-icon" onclick="deletePost(${p.id})" style="margin-left:auto;color:var(--text-xmuted)">🗑</button>` : ''}
+        </div>
+        <p class="post-content">${escapeHtml(p.content)}</p>
+        <div class="post-actions">
+          <button class="post-action-btn ${p.liked_by_me?'liked':''}" id="like-btn-${p.id}" onclick="toggleLike(${p.id})">
+            ♥ <span id="likes-${p.id}">${p.likes_count}</span>
+          </button>
+          <button class="post-action-btn" onclick="openComments(${p.id})">
+            💬 <span>${p.comment_count||0}</span> Comments
+          </button>
+        </div>
+      `;
+      document.getElementById('feed').appendChild(div);
+    }
+
+    async function submitPost() {
+      const content = document.getElementById('post-content').value.trim();
+      if (!content) { showToast('Write something first!','warning'); return; }
+      const res = await apiFetch('/api/community/posts', { method:'POST', body:{ content, post_type: postType } });
+      if (!res._error) {
+        document.getElementById('post-content').value = '';
+        showToast('Posted!','success');
+        await loadFeed(true);
+      }
+    }
+
+    async function toggleLike(postId) {
+      const res = await apiFetch(`/api/community/posts/${postId}/like`, { method:'POST' }, false);
+      if (!res._error) {
+        const btn = document.getElementById(`like-btn-${postId}`);
+        const cnt = document.getElementById(`likes-${postId}`);
+        const liked = res.liked;
+        btn.classList.toggle('liked', liked);
+        cnt.textContent = parseInt(cnt.textContent) + (liked ? 1 : -1);
+      }
+    }
+
+    async function openComments(postId) {
+      document.getElementById('comment-post-id').value = postId;
+      openModal('comments-modal');
+      const data = await apiFetch(`/api/community/posts/${postId}/comments`, {}, false);
+      const list = document.getElementById('comments-list');
+      if (!data?.length) {
+        list.innerHTML = `<div class="empty-state" style="padding:var(--space-lg)"><div class="empty-icon">💬</div><p>No comments yet. Be first!</p></div>`;
+      } else {
+        list.innerHTML = data.map(c => `
+          <div style="display:flex;gap:12px;padding:10px 0;border-bottom:1px solid var(--bg-border)">
+            <div style="width:32px;height:32px;border-radius:50%;background:var(--gradient-violet);display:flex;align-items:center;justify-content:center;font-size:.75rem;font-weight:800;color:white;flex-shrink:0">${(c.display_name||c.email||'?').substring(0,2).toUpperCase()}</div>
+            <div><div style="font-weight:700;font-size:.85rem">${c.display_name||c.email}</div><div style="font-size:.85rem;color:var(--text-secondary)">${escapeHtml(c.content)}</div><div style="font-size:.7rem;color:var(--text-muted);margin-top:2px">${formatTimeAgo(c.created_at)}</div></div>
+          </div>
+        `).join('');
+      }
+    }
+
+    async function submitComment() {
+      const postId  = document.getElementById('comment-post-id').value;
+      const content = document.getElementById('comment-text').value.trim();
+      if (!content || !postId) return;
+      const res = await apiFetch(`/api/community/posts/${postId}/comments`, { method:'POST', body:{ content } });
+      if (!res._error) {
+        document.getElementById('comment-text').value = '';
+        await openComments(parseInt(postId));
+        showToast('Comment added!','success');
+      }
+    }
+
+    async function deletePost(postId) {
+      if (!confirm('Delete this post?')) return;
+      await apiFetch(`/api/community/posts/${postId}`, { method:'DELETE' });
+      document.getElementById(`post-${postId}`)?.remove();
+    }
+
+    function escapeHtml(s) { return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>'); }
+  </script>
+</body>
+</html>

@@ -1,0 +1,68 @@
+/*
+ * PeakForm — Analytics Charts CSS
+ */
+
+.chart-container {
+  position: relative;
+  width: 100%;
+}
+
+.chart-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-md);
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+}
+
+.chart-title {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.chart-filters {
+  display: flex;
+  gap: var(--space-xs);
+  flex-wrap: wrap;
+}
+
+.chart-filter-btn {
+  padding: 5px 12px;
+  border-radius: var(--radius-full);
+  border: 1px solid var(--bg-border);
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--transition);
+}
+
+.chart-filter-btn.active,
+.chart-filter-btn:hover {
+  background: var(--violet-primary);
+  border-color: var(--violet-primary);
+  color: white;
+  box-shadow: 0 0 15px rgba(139, 92, 246, 0.3);
+}
+
+.chart-canvas-wrap {
+  position: relative;
+  height: 260px;
+}
+
+.chart-canvas-wrap.tall {
+  height: 340px;
+}
+
+.chart-canvas-wrap.short {
+  height: 180px;
+}
+
+/* Stat card highlights */
+.stat-card.violet { border-left: 3px solid var(--violet-primary); }
+.stat-card.blue { border-left: 3px solid var(--accent-blue); }
+.stat-card.success { border-left: 3px solid var(--success); }
+.stat-card.teal { border-left: 3px solid var(--accent-teal); }

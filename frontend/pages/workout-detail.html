@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+  <title>Workout Detail — Reprise</title>
+  <link rel="icon" href="/static/assets/logo.png">
+  <link rel="stylesheet" href="/static/css/main.css">
+  <link rel="stylesheet" href="/static/css/components.css">
+  <link rel="stylesheet" href="/static/css/workout.css">
+</head>
+<body class="app-layout">
+  <button class="mobile-menu-btn" id="mobile-menu-btn">☰</button>
+  <div class="sidebar-overlay" id="sidebar-overlay"></div>
+  <aside class="sidebar" id="sidebar"></aside>
+
+  <main class="main-content">
+    <div class="page-header flex-between">
+      <div>
+        <div style="font-size:.82rem;color:var(--text-muted);margin-bottom:4px"><a href="/workout-history.html">← History</a></div>
+        <h1 id="workout-title">Loading...</h1>
+        <p id="workout-meta"></p>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-primary btn-sm" onclick="analyzeSession()" id="analyze-btn">✨ Analyze Session</button>
+        <button class="btn btn-outline btn-sm" id="edit-btn">✏️ Edit</button>
+        <button class="btn btn-danger btn-sm" onclick="deleteWorkout()">🗑 Delete</button>
+      </div>
+    </div>
+
+    <!-- AI Recap -->
+    <div id="ai-recap-card" class="card mb-xl" style="display:none;background:rgba(139,92,246,0.1);border:1px solid var(--violet)">
+      <div class="card-title mb-sm" style="color:var(--violet-l)"><span style="font-size:1.2rem">🤖</span> Coach Analysis</div>
+      <p id="ai-recap-text" style="color:var(--text-secondary);font-size:.95rem;line-height:1.5"></p>
+    </div>
+
+    <!-- Summary stats -->
+    <div class="stats-grid mb-xl" id="workout-stats"></div>
+
+    <!-- Notes -->
+    <div id="workout-notes-card" class="card mb-xl" style="display:none">
+      <div class="card-title mb-sm">Notes</div>
+      <p id="workout-notes" style="color:var(--text-secondary);font-size:.9rem"></p>
+    </div>
+
+    <!-- Visual Muscle HUD -->
+    <div class="card mb-xl" style="background:#0F0F16;border:1px solid #252535" id="muscle-map-card">
+      <div class="card-header mb-md" style="border-bottom:1px solid #252535;padding-bottom:12px">
+        <h3 class="card-title" style="font-size:.82rem;text-transform:uppercase;letter-spacing:.07em;color:var(--text-muted)">🫀 Muscles Worked</h3>
+        <div style="display:flex;gap:6px;align-items:center">
+          <div id="muscle-legend" style="display:flex;gap:10px;font-size:.72rem;color:var(--text-muted)">
+            <span><span style="display:inline-block;width:10px;height:10px;background:rgba(255,255,255,.12);border-radius:2px;margin-right:4px"></span>Not targeted</span>
+            <span><span style="display:inline-block;width:10px;height:10px;background:linear-gradient(135deg,#8B5CF6,#F59E0B);border-radius:2px;margin-right:4px"></span>Targeted</span>
+          </div>
+          <button id="gender-toggle-btn" class="btn btn-ghost btn-sm" onclick="toggleMuscleGender()" style="font-size:.72rem">⚥ Switch</button>
+        </div>
+      </div>
+      <div style="display:flex;justify-content:center;align-items:flex-start;gap:24px;padding:16px 0;flex-wrap:wrap" id="muscle-svg-container">
+        <!-- Anterior (Front) -->
+        <div style="text-align:center">
+          <div style="font-size:.68rem;font-weight:800;color:var(--text-muted);letter-spacing:.1em;margin-bottom:8px;text-transform:uppercase">Anterior</div>
+          <svg id="svg-front" viewBox="0 0 120 240" width="110" style="overflow:visible" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              <linearGradient id="target-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stop-color="#8B5CF6" stop-opacity="0.9"/>
+                <stop offset="100%" stop-color="#F59E0B" stop-opacity="0.9"/>
+              </linearGradient>
+              <filter id="glow"><feGaussianBlur stdDeviation="2" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+            </defs>
+            <!-- Body silhouette (male default) -->
+            <g id="body-front-male"><!-- Head --><ellipse cx="60" cy="18" rx="14" ry="16" fill="#1E1E2E" stroke="#3A3A5C" stroke-width="1.5"/>
+            <!-- Neck --><rect x="54" y="33" width="12" height="10" rx="3" fill="#1E1E2E" stroke="#3A3A5C" stroke-width="1.2"/>
+            <!-- Shoulders --><path d="M25 50 Q20 44 22 38 L38 37 Z" id="f-shoulder-l" fill="#1E1E2E" stroke="#3A3A5C" stroke-width="1.2"/>
+            <path d="M95 50 Q100 44 98 38 L82 37 Z" id="f-shoulder-r" fill="#1E1E2E" stroke="#3A3A5C" stroke-width="1.2"/>
+            <!-- Chest --><path d="M38 43 Q60 46 82 43 L80 70 Q70 73 60 73 Q50 73 40 70 Z" id="f-chest" fill="#1E1E2E" stroke="#3A3A5C" stroke-width="1.2"/>
+            <!-- Chest divider --><line x1="60" y1="43" x2="60" y2="73" stroke="#3A3A5C" stroke-width=".8"/>
+            <!-- Core/Abs --><rect x="48" y="75" width="24" height="36" rx="4" id="f-core" fill="#1E1E2E" stroke="#3A3A5C" stroke-width="1.2"/>
+            <line x1="60" y1="75" x2="60" y2="111" stroke="#3A3A5C" stroke-width=".8"/>
+            <line x1="48" y1="87" x2="72" y2="87" stroke="#3A3A5C" stroke-width=".7"/>
+            <line x1="48" y1="99" x2="72" y2="99" stroke="#3A3A5C" stroke-width=".7"/>
+            <!-- Arms upper --><path d="M22 50 Q14 58 16 82 L30 80 Q28 62 38 52 Z" id="f-bicep-l" fill="#1E1E2E" stroke="#3A3A5C" stroke-width="1.2"/>
+            <path d="M98 50 Q106 58 104 82 L90 80 Q92 62 82 52 Z" id="f-bicep-r" fill="#1E1E2E" stroke="#3A3A5C" stroke-width="1.2"/>
+            <!-- Forearms --><path d="M16 84 Q12 102 15 118 L26 116 Q26 100 30 82 Z" id="f-forearm-l" fill="#1E1E2E" stroke="#3A3A5C" stroke-width="1.2"/>
+            <path d="M104 84 Q108 102 105 118 L94 116 Q94 100 90 82 Z" id="f-forearm-r" fill="#1E1E2E" stroke="#3A3A5C" stroke-width="1.2"/>
+            <!-- Hips --><path d="M40 113 Q30 116 30 125 L40 130 Z" fill="#1E1E2E" stroke="#3A3A5C" stroke-width="1.1"/>
+            <path d="M80 113 Q90 116 90 125 L80 130 Z" fill="#1E1E2E" stroke="#3A3A5C" stroke-width="1.1"/>
+            <!-- Quads --><path d="M40 115 Q34 135 36 165 L54 167 Q52 140 48 115 Z" id="f-quad-l" fill="#1E1E2E" stroke="#3A3A5C" stroke-width="1.2"/>
+            <path d="M80 115 Q86 135 84 165 L66 167 Q68 140 72 115 Z" id="f-quad-r" fill="#1E1E2E" stroke="#3A3A5C" stroke-width="1.2"/>
+            <!-- Knees --><ellipse cx="45" cy="170" rx="9" ry="6" fill="#1E1E2E" stroke="#3A3A5C" stroke-width="1.1"/>
+            <ellipse cx="75" cy="170" rx="9" ry="6" fill="#1E1E2E" stroke="#3A3A5C" stroke-width="1.1"/>
+            <!-- Calves --><path d="M38 176 Q35 195 37 215 L53 215 Q52 195 54 176 Z" id="f-calf-l" fill="#1E1E2E" stroke="#3A3A5C" stroke-width="1.2"/>
+            <path d="M82 176 Q85 195 83 215 L67 215 Q68 195 66 176 Z" id="f-calf-r" fill="#1E1E2E" stroke="#3A3A5C" stroke-width="1.2"/>
+            </g>
+            <!-- Female variant (hidden by default) -->
+            <g id="body-front-female" style="display:none">
+            <ellipse cx="60" cy="18" rx="12" ry="14" fill="#1E1E2E" stroke="#3A3A5C" stroke-width="1.5"/>
+            <rect x="55" y="31" width="10" height="9" rx="3" fill="#1E1E2E" stroke="#3A3A5C" stroke-width="1.2"/>
+            <path d="M28 46 Q23 42 24 37 L38 37 Z" id="ff-shoulder-l" fill="#1E1E2E" stroke="#3A3A5C" stroke-width="1.2"/>
+            <path d="M92 46 Q97 42 96 37 L82 37 Z" id="ff-shoulder-r" fill="#1E1E2E" stroke="#3A3A5C" stroke-width="1.2"/>
+            <path d="M38 42 Q60 44 82 42 L82 68 Q74 74 60 74 Q46 74 38 68 Z" id="ff-chest" fill="#1E1E2E" stroke="#3A3A5C" stroke-width="1.2"/>
+            <rect x="50" y="76" width="20" height="30" rx="4" id="ff-core" fill="#1E1E2E" stroke="#3A3A5C" stroke-width="1.2"/>
+            <line x1="60" y1="76" x2="60" y2="106" stroke="#3A3A5C" stroke-width=".8"/>
+            <line x1="50" y1="86" x2="70" y2="86" stroke="#3A3A5C" stroke-width=".7"/>
+            <line x1="50" y1="96" x2="70" y2="96" stroke="#3A3A5C" stroke-width=".7"/>
+            <path d="M24 48 Q17 56 20 78 L32 76 Q30 60 38 50 Z" id="ff-bicep-l" fill="#1E1E2E" stroke="#3A3A5C" stroke-width="1.2"/>
+            <path d="M96 48 Q103 56 100 78 L88 76 Q90 60 82 50 Z" id="ff-bicep-r" fill="#1E1E2E" stroke="#3A3A5C" stroke-width="1.2"/>
+            <path d="M20 80 Q17 96 20 110 L30 108 Q30 94 32 78 Z" id="ff-forearm-l" fill="#1E1E2E" stroke="#3A3A5C" stroke-width="1.2"/>
+            <path d="M100 80 Q103 96 100 110 L90 108 Q90 94 88 78 Z" id="ff-forearm-r" fill="#1E1E2E" stroke="#3A3A5C" stroke-width="1.2"/>
+            <path d="M44 108 Q36 118 38 160 L56 162 Q54 135 50 110 Z" id="ff-quad-l" fill="#1E1E2E" stroke="#3A3A5C" stroke-width="1.2"/>
+            <path d="M76 108 Q84 118 82 160 L64 162 Q66 135 70 110 Z" id="ff-quad-r" fill="#1E1E2E" stroke="#3A3A5C" stroke-width="1.2"/>
+            <ellipse cx="47" cy="164" rx="8" ry="5" fill="#1E1E2E" stroke="#3A3A5C" stroke-width="1.1"/>
+            <ellipse cx="73" cy="164" rx="8" ry="5" fill="#1E1E2E" stroke="#3A3A5C" stroke-width="1.1"/>
+            <path d="M40 169 Q38 188 40 208 L56 208 Q55 188 55 169 Z" id="ff-calf-l" fill="#1E1E2E" stroke="#3A3A5C" stroke-width="1.2"/>
+            <path d="M80 169 Q82 188 80 208 L64 208 Q65 188 65 169 Z" id="ff-calf-r" fill="#1E1E2E" stroke="#3A3A5C" stroke-width="1.2"/>
+            </g>
+          </svg>
+        </div>
+
+        <!-- Posterior (Back) -->
+        <div style="text-align:center">
+          <div style="font-size:.68rem;font-weight:800;color:var(--text-muted);letter-spacing:.1em;margin-bottom:8px;text-transform:uppercase">Posterior</div>
+          <svg id="svg-back" viewBox="0 0 120 240" width="110" style="overflow:visible" xmlns="http://www.w3.org/2000/svg">
+            <g id="body-back-male">
+            <ellipse cx="60" cy="18" rx="14" ry="16" fill="#1E1E2E" stroke="#3A3A5C" stroke-width="1.5"/>
+            <rect x="54" y="33" width="12" height="10" rx="3" fill="#1E1E2E" stroke="#3A3A5C" stroke-width="1.2"/>
+            <path d="M25 50 Q20 44 22 38 L38 37 Z" id="b-shoulder-l" fill="#1E1E2E" stroke="#3A3A5C" stroke-width="1.2"/>
+            <path d="M95 50 Q100 44 98 38 L82 37 Z" id="b-shoulder-r" fill="#1E1E2E" stroke="#3A3A5C" stroke-width="1.2"/>
+            <!-- Upper back/Traps --><path d="M38 41 Q60 38 82 41 L80 55 Q60 52 40 55 Z" id="b-traps" fill="#1E1E2E" stroke="#3A3A5C" stroke-width="1.2"/>
+            <!-- Lats --><path d="M38 58 Q28 70 32 95 L48 95 Q44 72 42 58 Z" id="b-lat-l" fill="#1E1E2E" stroke="#3A3A5C" stroke-width="1.2"/>
+            <path d="M82 58 Q92 70 88 95 L72 95 Q76 72 78 58 Z" id="b-lat-r" fill="#1E1E2E" stroke="#3A3A5C" stroke-width="1.2"/>
+            <!-- Mid back --><rect x="44" y="57" width="32" height="38" rx="3" id="b-midback" fill="#1E1E2E" stroke="#3A3A5C" stroke-width="1.2"/>
+            <!-- Lower back --><rect x="46" y="97" width="28" height="16" rx="3" id="b-lowerback" fill="#1E1E2E" stroke="#3A3A5C" stroke-width="1.1"/>
+            <!-- Triceps --><path d="M22 50 Q14 58 16 82 L30 80 Q28 62 38 52 Z" id="b-tricep-l" fill="#1E1E2E" stroke="#3A3A5C" stroke-width="1.2"/>
+            <path d="M98 50 Q106 58 104 82 L90 80 Q92 62 82 52 Z" id="b-tricep-r" fill="#1E1E2E" stroke="#3A3A5C" stroke-width="1.2"/>
+            <path d="M16 84 Q12 102 15 118 L26 116 Q26 100 30 82 Z" id="b-forearm-bl" fill="#1E1E2E" stroke="#3A3A5C" stroke-width="1.2"/>
+            <path d="M104 84 Q108 102 105 118 L94 116 Q94 100 90 82 Z" id="b-forearm-br" fill="#1E1E2E" stroke="#3A3A5C" stroke-width="1.2"/>
+            <!-- Glutes --><path d="M40 115 Q34 122 36 138 L60 140 Q60 124 52 115 Z" id="b-glute-l" fill="#1E1E2E" stroke="#3A3A5C" stroke-width="1.2"/>
+            <path d="M80 115 Q86 122 84 138 L60 140 Q60 124 68 115 Z" id="b-glute-r" fill="#1E1E2E" stroke="#3A3A5C" stroke-width="1.2"/>
+            <!-- Hamstrings --><path d="M36 140 Q33 160 36 170 L54 170 Q52 155 54 140 Z" id="b-hamstring-l" fill="#1E1E2E" stroke="#3A3A5C" stroke-width="1.2"/>
+            <path d="M84 140 Q87 160 84 170 L66 170 Q68 155 66 140 Z" id="b-hamstring-r" fill="#1E1E2E" stroke="#3A3A5C" stroke-width="1.2"/>
+            <ellipse cx="45" cy="173" rx="9" ry="5" fill="#1E1E2E" stroke="#3A3A5C" stroke-width="1.1"/>
+            <ellipse cx="75" cy="173" rx="9" ry="5" fill="#1E1E2E" stroke="#3A3A5C" stroke-width="1.1"/>
+            <!-- Calves back --><path d="M38 178 Q35 197 37 215 L53 215 Q52 196 54 178 Z" id="b-calf-l" fill="#1E1E2E" stroke="#3A3A5C" stroke-width="1.2"/>
+            <path d="M82 178 Q85 197 83 215 L67 215 Q68 196 66 178 Z" id="b-calf-r" fill="#1E1E2E" stroke="#3A3A5C" stroke-width="1.2"/>
+            </g>
+            <g id="body-back-female" style="display:none">
+            <ellipse cx="60" cy="18" rx="12" ry="14" fill="#1E1E2E" stroke="#3A3A5C" stroke-width="1.5"/>
+            <rect x="55" y="31" width="10" height="9" rx="3" fill="#1E1E2E" stroke="#3A3A5C" stroke-width="1.2"/>
+            <path d="M28 46 Q23 42 24 37 L38 37 Z" id="bf-shoulder-l" fill="#1E1E2E" stroke="#3A3A5C" stroke-width="1.2"/>
+            <path d="M92 46 Q97 42 96 37 L82 37 Z" id="bf-shoulder-r" fill="#1E1E2E" stroke="#3A3A5C" stroke-width="1.2"/>
+            <path d="M38 40 Q60 37 82 40 L80 54 Q60 51 40 54 Z" id="bf-traps" fill="#1E1E2E" stroke="#3A3A5C" stroke-width="1.2"/>
+            <path d="M38 56 Q30 68 33 90 L48 90 Q45 70 42 56 Z" id="bf-lat-l" fill="#1E1E2E" stroke="#3A3A5C" stroke-width="1.2"/>
+            <path d="M82 56 Q90 68 87 90 L72 90 Q75 70 78 56 Z" id="bf-lat-r" fill="#1E1E2E" stroke="#3A3A5C" stroke-width="1.2"/>
+            <rect x="45" y="56" width="30" height="34" rx="3" id="bf-midback" fill="#1E1E2E" stroke="#3A3A5C" stroke-width="1.2"/>
+            <path d="M24 48 Q17 56 20 78 L32 76 Q30 60 38 50 Z" id="bf-tricep-l" fill="#1E1E2E" stroke="#3A3A5C" stroke-width="1.2"/>
+            <path d="M96 48 Q103 56 100 78 L88 76 Q90 60 82 50 Z" id="bf-tricep-r" fill="#1E1E2E" stroke="#3A3A5C" stroke-width="1.2"/>
+            <path d="M44 108 Q36 120 40 145 L60 148 Q56 126 52 110 Z" id="bf-glute-l" fill="#1E1E2E" stroke="#3A3A5C" stroke-width="1.2"/>
+            <path d="M76 108 Q84 120 80 145 L60 148 Q64 126 68 110 Z" id="bf-glute-r" fill="#1E1E2E" stroke="#3A3A5C" stroke-width="1.2"/>
+            <path d="M40 148 Q37 166 40 175 L56 175 Q54 162 56 148 Z" id="bf-hamstring-l" fill="#1E1E2E" stroke="#3A3A5C" stroke-width="1.2"/>
+            <path d="M80 148 Q83 166 80 175 L64 175 Q66 162 64 148 Z" id="bf-hamstring-r" fill="#1E1E2E" stroke="#3A3A5C" stroke-width="1.2"/>
+            <path d="M40 180 Q38 198 40 208 L56 208 Q55 196 55 180 Z" id="bf-calf-l" fill="#1E1E2E" stroke="#3A3A5C" stroke-width="1.2"/>
+            <path d="M80 180 Q82 198 80 208 L64 208 Q65 196 65 180 Z" id="bf-calf-r" fill="#1E1E2E" stroke="#3A3A5C" stroke-width="1.2"/>
+            </g>
+          </svg>
+        </div>
+      </div>
+      <!-- Worked muscles chip list -->
+      <div id="muscles-chips" style="display:flex;flex-wrap:wrap;gap:6px;padding:0 16px 16px"></div>
+    </div>
+
+    <!-- Exercises & sets -->
+    <div id="exercises-view"></div>
+  </main>
+
+
+  <div id="toast-container" class="toast-container"></div>
+  <script src="/static/js/utils.js"></script>
+  <script src="/static/js/api.js"></script>
+  <script>
+    let WORKOUT_ID;
+    onReady(async () => {
+      requireAuth(); renderSidebar(); initMobileSidebar();
+      WORKOUT_ID = new URLSearchParams(location.search).get('id');
+      if (!WORKOUT_ID) { window.location.href='/workout-history.html'; return; }
+      document.getElementById('edit-btn').href = `/log-workout.html?workout_id=${WORKOUT_ID}`;
+      await loadWorkout();
+    });
+
+    async function loadWorkout() {
+      const w = await apiFetch(`/api/workouts/${WORKOUT_ID}`);
+      if (!w || w._error) { showToast('Workout not found','error'); return; }
+
+      let headerHtml = `
+        <div style="flex:1">
+          <div style="font-size:.82rem;color:var(--text-muted);margin-bottom:4px"><a href="/workout-history.html">← History</a></div>
+          <h1 id="workout-title" style="margin:0">${w.name || 'Session'}</h1>
+          <div id="workout-meta" style="color:var(--text-muted);font-size:.85rem;margin-top:4px">${formatDate(w.workout_date)} ${w.duration_minutes ? ` · ${formatDuration(w.duration_minutes)}` : ''}</div>
+        </div>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-primary btn-sm" onclick="analyzeSession()" id="analyze-btn">✨ Analyze Session</button>
+          <a id="edit-btn" href="/log-workout.html?workout_id=${w.id}" class="btn btn-outline btn-sm">Edit</a>
+          <button class="btn btn-danger btn-sm" onclick="deleteWorkout()">🗑 Delete</button>
+        </div>
+      `;
+
+      if (w.previous_stats) {
+         headerHtml += `
+         <div style="width:100%;margin-top:12px;padding:12px;background:rgba(139,92,246,0.1);border-left:3px solid var(--violet);border-radius:4px;font-size:0.85rem">
+            <strong>Previous Preset Run:</strong> ${formatDate(w.previous_stats.date)} 
+            · Vol: ${w.previous_stats.volume_kg} kg 
+            · <a href="/workout-detail.html?id=${w.previous_stats.id}">View</a>
+         </div>
+         `;
+      }
+      
+      document.querySelector('.page-header.flex-between').innerHTML = headerHtml;
+      document.querySelector('.page-header.flex-between').style.flexWrap = 'wrap';
+
+      const totalSets = w.exercises?.reduce((n,e) => n + (e.sets?.length||0), 0) || 0;
+      let totalVol = 0;
+      w.exercises?.forEach(ex => ex.sets?.forEach(s => {
+        if (!s.is_warmup) totalVol += (s.weight_kg||0) * (s.reps||s.duration_seconds||1);
+      }));
+
+      document.getElementById('workout-stats').innerHTML = `
+        <div class="stat-card"><div class="stat-icon">🏋️</div><div class="stat-value">${w.exercises?.length||0}</div><div class="stat-label">Exercises</div></div>
+        <div class="stat-card"><div class="stat-icon">📦</div><div class="stat-value">${totalSets}</div><div class="stat-label">Total Sets</div></div>
+        <div class="stat-card"><div class="stat-icon">⚡</div><div class="stat-value">${Math.round(totalVol)}</div><div class="stat-label">Volume (kg)</div></div>
+        <div class="stat-card"><div class="stat-icon">⏱️</div><div class="stat-value">${formatDuration(w.duration_minutes)}</div><div class="stat-label">Duration</div></div>
+      `;
+      
+      highlightMuscles(w.exercises);
+
+      if (w.notes) {
+        document.getElementById('workout-notes-card').style.display = 'block';
+        document.getElementById('workout-notes').textContent = w.notes;
+      }
+
+      const container = document.getElementById('exercises-view');
+      if (!w.exercises?.length) {
+        container.innerHTML = `<div class="empty-state"><div class="empty-icon">💪</div><h3>No exercises logged</h3></div>`;
+        return;
+      }
+
+      container.innerHTML = w.exercises.map(ex => `
+        <div class="card mb-md">
+          <div class="flex-between mb-lg">
+            <div>
+              <div style="font-weight:700;font-size:1rem">${ex.exercise_name}</div>
+              <div style="font-size:.75rem;color:var(--text-muted);margin-top:2px">${ex.category?.replace('_',' ')||''} · ${ex.muscles||''}</div>
+            </div>
+            <div style="display:flex;gap:8px;align-items:center">
+              ${setTypeBadge(ex.set_type)}
+              <a href="/progress.html?exercise_id=${ex.exercise_id}" class="btn btn-ghost btn-sm">📈 Progress</a>
+            </div>
+          </div>
+          <div class="table-wrapper">
+            <table class="table">
+              <thead><tr>${buildSetTableHeaders(ex.set_type)}</tr></thead>
+              <tbody>${(ex.sets||[]).map(s => buildSetTableRow(s, ex.set_type)).join('')}</tbody>
+            </table>
+          </div>
+        </div>
+      `).join('');
+
+      // Build Muscle Map HUD
+      const maps = {
+        'chest': ['muscle-chest'],
+        'back': ['muscle-back'],
+        'shoulders': ['muscle-shoulders-fwd-l','muscle-shoulders-fwd-r','muscle-shoulders-bwd-l','muscle-shoulders-bwd-r'],
+        'arms': ['muscle-arms-fwd-l','muscle-arms-fwd-r','muscle-arms-bwd-l','muscle-arms-bwd-r'],
+        'legs': ['muscle-legs-fwd-l','muscle-legs-fwd-r','muscle-legs-bwd-l','muscle-legs-bwd-r'],
+        'core': ['muscle-core']
+      };
+      
+      const usedCategories = new Set(w.exercises.map(e => e.category?.toLowerCase()).filter(Boolean));
+      // Read specific musculature keywords
+      const allMusclesStr = w.exercises.map(e => e.muscles||'').join(' ').toLowerCase();
+      
+      // Additional fallback logic
+      if (allMusclesStr.includes('abs') || allMusclesStr.includes('core')) usedCategories.add('core');
+      if (allMusclesStr.includes('bicep') || allMusclesStr.includes('tricep')) usedCategories.add('arms');
+      
+      usedCategories.forEach(cat => {
+        if (maps[cat]) {
+          maps[cat].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) {
+              el.setAttribute('fill', 'url(#neon)');
+              el.setAttribute('stroke', '#F59E0B');
+            }
+          });
+        }
+      });
+    }
+
+    function buildSetTableHeaders(setType) {
+      let h = '<th>Set</th>';
+      if (setType === 'reps_weight')  h += '<th>Performance</th>';
+      if (setType === 'reps_only')    h += '<th>Reps</th>';
+      if (setType === 'time_only')    h += '<th>Time</th>';
+      if (setType === 'time_weight')  h += '<th>Performance</th>';
+      h += '<th>RPE</th><th></th>';
+      return h;
+
+    function buildSetTableRow(s, setType) {
+      const setLabel = s.is_warmup ? '<span class="badge badge-muted">W</span>' : `<strong>${s.set_number}</strong>`;
+      let performance = '';
+      if (setType === 'reps_weight')  performance = `<td><span style="font-weight:600">${s.weight_kg||0}kg</span> × ${s.reps||0}</td>`;
+      if (setType === 'reps_only')    performance = `<td>${s.reps||0} reps</td>`;
+      if (setType === 'time_only')    performance = `<td>${formatSeconds(s.duration_seconds)}</td>`;
+      if (setType === 'time_weight')  performance = `<td><span style="font-weight:600">${s.weight_kg||0}kg</span> × ${formatSeconds(s.duration_seconds)}</td>`;
+      const rpe = s.rpe ? `<span style="color:var(--violet-l)">${s.rpe}</span>` : '—';
+      const indicator = s.is_failure ? '⚠️' : '';
+      return `<tr style="${s.is_warmup?'opacity:.6':''}"><td>${setLabel}</td>${performance}<td>${rpe}</td><td>${indicator}</td></tr>`;
+    }
+
+    function highlightMuscles(exercises) {
+      if (!exercises || exercises.length === 0) return;
+      
+      const muscleList = new Set();
+      exercises.forEach(ex => {
+        if (ex.muscles) {
+          ex.muscles.split(',').map(m => m.trim().toLowerCase()).forEach(m => muscleList.add(m));
+        }
+      });
+      
+      const map = {
+        'chest': ['f-chest', 'ff-chest'],
+        'shoulders': ['f-shoulder-l', 'f-shoulder-r', 'ff-shoulder-l', 'ff-shoulder-r', 'b-shoulder-l', 'b-shoulder-r', 'bf-shoulder-l', 'bf-shoulder-r'],
+        'biceps': ['f-bicep-l', 'f-bicep-r', 'ff-bicep-l', 'ff-bicep-r'],
+        'triceps': ['b-tricep-l', 'b-tricep-r', 'bf-tricep-l', 'bf-tricep-r'],
+        'forearms': ['f-forearm-l', 'f-forearm-r', 'ff-forearm-l', 'ff-forearm-r', 'b-forearm-bl', 'b-forearm-br'],
+        'core': ['f-core', 'ff-core'],
+        'lats': ['b-lat-l', 'b-lat-r', 'bf-lat-l', 'bf-lat-r'],
+        'lower back': ['b-lowerback', 'bf-lowerback'],
+        'traps': ['b-traps', 'bf-traps'],
+        'mid back': ['b-midback', 'bf-midback'],
+        'quads': ['f-quad-l', 'f-quad-r', 'ff-quad-l', 'ff-quad-r'],
+        'hamstrings': ['b-hamstring-l', 'b-hamstring-r', 'bf-hamstring-l', 'bf-hamstring-r'],
+        'glutes': ['b-glute-l', 'b-glute-r', 'bf-glute-l', 'bf-glute-r'],
+        'calves': ['f-calf-l', 'f-calf-r', 'ff-calf-l', 'ff-calf-r', 'b-calf-l', 'b-calf-r', 'bf-calf-l', 'bf-calf-r'],
+      };
+      
+      muscleList.forEach(m => {
+        let targets = map[m];
+        if (!targets && m.includes('back')) targets = map['mid back'];
+        if (targets) {
+           targets.forEach(id => {
+             const el = document.getElementById(id);
+             if (el) {
+                el.style.fill = 'url(#target-grad)';
+                el.style.filter = 'url(#glow)';
+                el.style.stroke = '#F59E0B';
+             }
+           });
+        }
+      });
+      
+      const chips = document.getElementById('muscles-chips');
+      if (chips) {
+        chips.innerHTML = Array.from(muscleList).map(m => `<span class="badge badge-primary" style="text-transform:capitalize">${m}</span>`).join('');
+      }
+    }
+
+    async function analyzeSession() {
+      const btn = document.getElementById('analyze-btn');
+      btn.textContent = 'Analyzing...';
+      btn.disabled = true;
+      const res = await apiFetch(`/api/ai/analyze-workout/${WORKOUT_ID}`, { method:'POST' }, false);
+      btn.textContent = '✨ Analyze Session';
+      btn.disabled = false;
+      if (!res || res._error) {
+        showToast('Analysis failed', 'error');
+        return;
+      }
+      document.getElementById('ai-recap-card').style.display = 'block';
+      document.getElementById('ai-recap-text').innerHTML = escapeHtml(res.analysis);
+    }
+
+    async function deleteWorkout() {
+      if (!confirm('Delete this workout? This cannot be undone.')) return;
+      const res = await apiFetch(`/api/workouts/${WORKOUT_ID}`, { method:'DELETE' });
+      if (!res._error) window.location.href = '/workout-history.html';
+    }
+  </script>
+</body>
+</html>

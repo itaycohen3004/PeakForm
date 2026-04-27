@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+  <title>Setup Profile — PeakForm</title>
+  <link rel="icon" href="/static/assets/logo.png">
+  <link rel="stylesheet" href="/static/css/main.css">
+  <link rel="stylesheet" href="/static/css/components.css">
+</head>
+<body class="auth-page" style="padding:var(--space-xl) var(--space-lg)">
+  <div class="auth-card" style="max-width:560px">
+    <div class="auth-logo">
+      <div style="font-size:2rem;margin-bottom:8px">🏔️</div>
+      <div class="auth-logo-text">PeakForm</div>
+    </div>
+
+    <!-- Steps indicator -->
+    <div class="onboarding-steps mb-xl">
+      <div class="step active" id="step-dot-1">1</div>
+      <div class="step-line"></div>
+      <div class="step" id="step-dot-2">2</div>
+      <div class="step-line"></div>
+      <div class="step" id="step-dot-3">3</div>
+    </div>
+
+    <!-- Step 1: Body Data -->
+    <div id="step-1">
+      <h2 style="font-size:1.4rem;font-weight:800;margin-bottom:4px">Your Body Data</h2>
+      <p class="text-muted mb-xl font-sm">Used for progress tracking and AI coaching.</p>
+      <div class="grid-2 mb-md">
+        <div class="form-group">
+          <label class="form-label">Age</label>
+          <input type="number" id="age" class="form-control" placeholder="e.g. 25" min="10" max="99">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Gender</label>
+          <select id="gender" class="form-control">
+            <option value="">Prefer not to say</option>
+            <option value="male">Male</option>
+            <option value="female">Female</option>
+            <option value="other">Other</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-group mb-md">
+        <label class="form-label">Height (cm)</label>
+        <input type="number" id="height_cm" class="form-control" placeholder="e.g. 180" min="100" max="250">
+      </div>
+      <div class="grid-2 mb-xl">
+        <div class="form-group">
+          <label class="form-label">Current Weight (kg)</label>
+          <input type="number" id="current_weight" class="form-control" placeholder="e.g. 80" step="0.1">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Target Weight (kg)</label>
+          <input type="number" id="target_weight" class="form-control" placeholder="e.g. 75" step="0.1">
+        </div>
+      </div>
+      <button class="btn btn-primary btn-full" onclick="goStep(2)">Continue →</button>
+    </div>
+
+    <!-- Step 2: Training -->
+    <div id="step-2" style="display:none">
+      <h2 style="font-size:1.4rem;font-weight:800;margin-bottom:4px">Training Profile</h2>
+      <p class="text-muted mb-xl font-sm">Helps us give better recommendations.</p>
+
+      <div class="form-group mb-md">
+        <label class="form-label">Experience Level</label>
+        <div class="experience-grid mb-lg">
+          <label class="exp-option"><input type="radio" name="experience" value="beginner"><div class="exp-card"><span class="exp-icon">🌱</span><span>Beginner</span><small>Under 6 months</small></div></label>
+          <label class="exp-option"><input type="radio" name="experience" value="intermediate" checked><div class="exp-card"><span class="exp-icon">💪</span><span>Intermediate</span><small>6mo – 2 years</small></div></label>
+          <label class="exp-option"><input type="radio" name="experience" value="advanced"><div class="exp-card"><span class="exp-icon">🦁</span><span>Advanced</span><small>2+ years</small></div></label>
+          <label class="exp-option"><input type="radio" name="experience" value="elite"><div class="exp-card"><span class="exp-icon">🏆</span><span>Elite</span><small>Competitive</small></div></label>
+        </div>
+      </div>
+
+      <div class="form-group mb-lg">
+        <label class="form-label">Days Available per Week</label>
+        <div class="days-picker" id="days-picker">
+          <button type="button" class="day-btn" data-val="1">1</button>
+          <button type="button" class="day-btn" data-val="2">2</button>
+          <button type="button" class="day-btn" data-val="3" data-selected>3</button>
+          <button type="button" class="day-btn" data-val="4">4</button>
+          <button type="button" class="day-btn" data-val="5">5</button>
+          <button type="button" class="day-btn" data-val="6">6</button>
+          <button type="button" class="day-btn" data-val="7">7</button>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:12px">
+        <button class="btn btn-ghost btn-full" onclick="goStep(1)">← Back</button>
+        <button class="btn btn-primary btn-full" onclick="goStep(3)">Continue →</button>
+      </div>
+    </div>
+
+    <!-- Step 3: Goal -->
+    <div id="step-3" style="display:none">
+      <h2 style="font-size:1.4rem;font-weight:800;margin-bottom:4px">Main Goal</h2>
+      <p class="text-muted mb-xl font-sm">What are you primarily training for?</p>
+
+      <div class="goal-grid mb-xl">
+        <label class="goal-option">
+          <input type="radio" name="main_goal" value="strength" checked>
+          <div class="goal-card">
+            <span class="goal-emoji">🏋️</span>
+            <strong>Strength</strong>
+            <small>Get stronger, hit PRs</small>
+          </div>
+        </label>
+        <label class="goal-option">
+          <input type="radio" name="main_goal" value="build_muscle">
+          <div class="goal-card">
+            <span class="goal-emoji">💪</span>
+            <strong>Build Muscle</strong>
+            <small>Hypertrophy, size</small>
+          </div>
+        </label>
+        <label class="goal-option">
+          <input type="radio" name="main_goal" value="fat_loss">
+          <div class="goal-card">
+            <span class="goal-emoji">🔥</span>
+            <strong>Fat Loss</strong>
+            <small>Lose weight, lean out</small>
+          </div>
+        </label>
+        <label class="goal-option">
+          <input type="radio" name="main_goal" value="general_fitness">
+          <div class="goal-card">
+            <span class="goal-emoji">⚡</span>
+            <strong>General Fitness</strong>
+            <small>Stay active, feel good</small>
+          </div>
+        </label>
+      </div>
+
+      <div style="display:flex;gap:12px">
+        <button class="btn btn-ghost btn-full" onclick="goStep(2)">← Back</button>
+        <button class="btn btn-primary btn-full" id="finish-btn" onclick="finishOnboarding()">🚀 Start Training</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast-container" class="toast-container"></div>
+  <script src="/static/js/utils.js"></script>
+  <script src="/static/js/api.js"></script>
+  <script>
+    if (!isLoggedIn()) { window.location.href = '/login.html'; }
+
+    let selectedDays = 3;
+
+    // Days picker
+    document.querySelectorAll('.day-btn').forEach(btn => {
+      if (btn.dataset.selected !== undefined) btn.classList.add('selected');
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.day-btn').forEach(b => b.classList.remove('selected'));
+        btn.classList.add('selected');
+        selectedDays = parseInt(btn.dataset.val);
+      });
+    });
+
+    function goStep(n) {
+      for (let i = 1; i <= 3; i++) {
+        const el = document.getElementById(`step-${i}`);
+        if (el) el.style.display = i === n ? 'block' : 'none';
+        const dot = document.getElementById(`step-dot-${i}`);
+        if (dot) {
+          dot.classList.toggle('active', i === n);
+          dot.classList.toggle('done', i < n);
+        }
+      }
+    }
+
+    async function finishOnboarding() {
+      const btn = document.getElementById('finish-btn');
+      btn.textContent = 'Saving...'; btn.disabled = true;
+
+      const payload = {
+        age:               parseInt(document.getElementById('age').value) || null,
+        gender:            document.getElementById('gender').value || null,
+        height_cm:         parseFloat(document.getElementById('height_cm').value) || null,
+        current_weight_kg: parseFloat(document.getElementById('current_weight').value) || null,
+        target_weight_kg:  parseFloat(document.getElementById('target_weight').value) || null,
+        experience_level:  document.querySelector('input[name="experience"]:checked')?.value || 'intermediate',
+        main_goal:         document.querySelector('input[name="main_goal"]:checked')?.value || 'general_fitness',
+        days_per_week:     selectedDays,
+      };
+
+      const res = await apiFetch('/api/auth/onboarding', { method:'POST', body: payload });
+      btn.textContent = '🚀 Start Training'; btn.disabled = false;
+      if (res._error) return;
+
+      // Update local user
+      const user = getUser();
+      if (user) {
+        user.onboarding_complete = true;
+        saveAuth(getToken(), user);
+      }
+
+      showToast('Profile saved! Welcome to PeakForm 🏔️', 'success');
+      setTimeout(() => { window.location.href = '/dashboard.html'; }, 900);
+    }
+  </script>
+  <style>
+    .onboarding-steps { display:flex; align-items:center; justify-content:center; gap:0; }
+    .step { width:32px;height:32px;border-radius:50%;background:var(--bg-border);display:flex;align-items:center;justify-content:center;font-size:.8rem;font-weight:700;color:var(--text-muted); }
+    .step.active { background:var(--gradient-violet);color:white;box-shadow:0 0 12px rgba(139,92,246,.4); }
+    .step.done { background:var(--green);color:white; }
+    .step-line { flex:1;height:2px;background:var(--bg-border);max-width:60px; }
+    .experience-grid { display:grid;grid-template-columns:1fr 1fr;gap:8px; }
+    .exp-option input { display:none; }
+    .exp-card { display:flex;flex-direction:column;align-items:center;gap:4px;padding:14px 8px;background:var(--bg-input);border:2px solid var(--bg-border);border-radius:var(--radius-md);cursor:pointer;text-align:center;transition:all var(--transition); }
+    .exp-card .exp-icon { font-size:1.4rem; }
+    .exp-card span { font-size:.82rem;font-weight:600; }
+    .exp-card small { font-size:.7rem;color:var(--text-muted); }
+    .exp-option input:checked + .exp-card { border-color:var(--violet);background:rgba(139,92,246,.12);color:var(--violet-l); }
+    .days-picker { display:flex;gap:8px;flex-wrap:wrap; }
+    .day-btn { width:40px;height:40px;border-radius:50%;background:var(--bg-input);border:2px solid var(--bg-border);color:var(--text-muted);font-size:.88rem;font-weight:700;cursor:pointer;transition:all var(--transition); }
+    .day-btn.selected { background:var(--gradient-violet);border-color:var(--violet);color:white; }
+    .goal-grid { display:grid;grid-template-columns:1fr 1fr;gap:12px; }
+    .goal-option input { display:none; }
+    .goal-card { display:flex;flex-direction:column;align-items:center;gap:6px;padding:18px 12px;background:var(--bg-input);border:2px solid var(--bg-border);border-radius:var(--radius-md);cursor:pointer;text-align:center;transition:all var(--transition); }
+    .goal-emoji { font-size:2rem; }
+    .goal-card strong { font-size:.88rem; }
+    .goal-card small { font-size:.75rem;color:var(--text-muted); }
+    .goal-option input:checked + .goal-card { border-color:var(--violet);background:rgba(139,92,246,.12);color:var(--violet-l); }
+  </style>
+</body>
+</html>

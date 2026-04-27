@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+  <title>Log Workout — PeakForm</title>
+  <meta name="description" content="Log your strength training workout with PeakForm.">
+  <link rel="icon" href="/static/assets/logo.png">
+  <link rel="stylesheet" href="/static/css/main.css">
+  <link rel="stylesheet" href="/static/css/components.css">
+  <link rel="stylesheet" href="/static/css/workout.css">
+</head>
+<body class="app-layout">
+  <button class="mobile-menu-btn" id="mobile-menu-btn">☰</button>
+  <div class="sidebar-overlay" id="sidebar-overlay"></div>
+  <aside class="sidebar" id="sidebar"></aside>
+
+  <main class="main-content" style="padding-bottom:100px">
+
+    <!-- Workout Start Options (shown before starting) -->
+    <div id="start-options" style="display:none">
+      <div class="page-header">
+        <h1>💪 New Workout</h1>
+        <p>Choose how to start your session</p>
+      </div>
+      <div class="grid-3 mb-xl">
+        <div class="start-option-card" onclick="startCustom()">
+          <div class="start-option-icon">✏️</div>
+          <div class="start-option-title">Custom Workout</div>
+          <div class="start-option-desc">Build freely — add any exercises</div>
+        </div>
+        <div class="start-option-card" onclick="showTemplateSelector()">
+          <div class="start-option-icon">📋</div>
+          <div class="start-option-title">From Template</div>
+          <div class="start-option-desc">Load a saved workout plan</div>
+        </div>
+        <div class="start-option-card" onclick="checkResumeDraft()" id="resume-card" style="display:none">
+          <div class="start-option-icon">⚡</div>
+          <div class="start-option-title">Resume Draft</div>
+          <div class="start-option-desc">Continue your last session</div>
+        </div>
+      </div>
+
+      <!-- Template selector -->
+      <div id="template-selector" class="card" style="display:none">
+        <div class="card-header mb-md">
+          <h3 class="card-title">📋 Select Template</h3>
+          <button class="btn btn-ghost btn-sm" onclick="hideTemplateSelector()">✕</button>
+        </div>
+        <div id="template-list"><div class="skeleton skeleton-block"></div></div>
+      </div>
+    </div>
+
+    <!-- Active workout logger (shown after starting) -->
+    <div id="workout-logger" style="display:none">
+      <!-- Header -->
+      <div class="workout-header">
+        <div style="flex:1">
+          <input type="text" id="workout-name" class="form-control"
+                 placeholder="Workout name (e.g. Push Day A)"
+                 style="font-size:1.2rem;font-weight:700;background:transparent;border:none;border-bottom:2px solid var(--bg-border);border-radius:0;padding-left:0;max-width:400px">
+          <div style="display:flex;gap:var(--space-md);margin-top:var(--space-sm);align-items:center;flex-wrap:wrap">
+            <input type="date" id="workout-date" class="form-control" style="max-width:180px">
+            <div id="workout-timer" style="font-family:monospace;font-size:.95rem;color:var(--text-muted);font-weight:600">00:00:00</div>
+            <span id="autosave-indicator" style="font-size:.72rem;color:var(--text-xmuted)">💾 Auto-saving...</span>
+          </div>
+        </div>
+        <div style="display:flex;gap:var(--space-sm)">
+          <button class="btn btn-outline btn-sm" onclick="showDiscardConfirm()" id="cancel-btn">✕ Cancel</button>
+          <button class="btn btn-primary" onclick="finishWorkout()" id="finish-btn">✓ Finish</button>
+        </div>
+      </div>
+
+      <!-- Notes -->
+      <div class="card card-sm mb-md">
+        <input type="text" id="workout-notes" class="form-control" placeholder="💭 Workout notes (optional)" style="background:transparent;border:none;padding:0">
+      </div>
+
+      <!-- Exercises container -->
+      <div id="exercises-container"></div>
+
+      <!-- Add exercise panel -->
+      <div class="card mt-md" style="border:2px dashed rgba(139,92,246,.3);background:rgba(139,92,246,.03)">
+        <div style="font-size:.8rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-xmuted);margin-bottom:var(--space-md)">+ Add Exercise</div>
+        <div class="exercise-search-wrap mb-md">
+          <input type="text" id="exercise-search" class="form-control"
+                 placeholder="🔍 Search exercises (e.g. Bench Press, Pull-up...)"
+                 oninput="searchExercises(this.value)" autocomplete="off">
+          <div class="exercise-dropdown" id="exercise-dropdown"></div>
+        </div>
+        <div style="display:flex;gap:var(--space-sm);flex-wrap:wrap" id="category-filters">
+          <button class="btn btn-ghost btn-sm cat-btn" onclick="filterCategory('')" data-cat="">All</button>
+          <button class="btn btn-ghost btn-sm cat-btn" onclick="filterCategory('chest')" data-cat="chest">🫀 Chest</button>
+          <button class="btn btn-ghost btn-sm cat-btn" onclick="filterCategory('back')" data-cat="back">🦾 Back</button>
+          <button class="btn btn-ghost btn-sm cat-btn" onclick="filterCategory('shoulders')" data-cat="shoulders">💪 Shoulders</button>
+          <button class="btn btn-ghost btn-sm cat-btn" onclick="filterCategory('arms')" data-cat="arms">💪 Arms</button>
+          <button class="btn btn-ghost btn-sm cat-btn" onclick="filterCategory('legs')" data-cat="legs">🦵 Legs</button>
+          <button class="btn btn-ghost btn-sm cat-btn" onclick="filterCategory('core')" data-cat="core">🔥 Core</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Discard confirm modal -->
+    <div id="discard-modal" class="modal" style="display:none">
+      <div class="modal-box">
+        <h3 style="margin-bottom:var(--space-md)">Cancel Workout?</h3>
+        <p class="text-muted mb-xl">All progress will be lost. Are you sure?</p>
+        <div style="display:flex;gap:12px">
+          <button class="btn btn-ghost btn-full" onclick="closeModal('discard-modal')">Keep Training</button>
+          <button class="btn btn-full" style="background:var(--red);color:white" onclick="discardWorkout()">Discard Workout</button>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- Sticky summary bar -->
+  <div class="workout-summary-bar" id="summary-bar" style="display:none">
+    <div class="workout-summary-stat">
+      <div class="value" id="sum-exercises">0</div>
+      <div class="label">Exercises</div>
+    </div>
+    <div class="workout-summary-stat">
+      <div class="value" id="sum-sets">0</div>
+      <div class="label">Sets</div>
+    </div>
+    <div class="workout-summary-stat">
+      <div class="value" id="sum-volume">0</div>
+      <div class="label">Vol kg</div>
+    </div>
+    <div class="workout-summary-stat">
+      <div class="value" id="sum-duration">00:00</div>
+      <div class="label">Time</div>
+    </div>
+    <button class="btn btn-primary" onclick="finishWorkout()">✓ Finish Workout</button>
+  </div>
+
+  <div id="toast-container" class="toast-container"></div>
+  <script src="/static/js/utils.js"></script>
+  <script src="/static/js/api.js"></script>
+  <script src="/static/js/workout-log.js"></script>
+</body>
+</html>

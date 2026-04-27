@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+  <title>Community Chat — Reprise</title>
+  <link rel="icon" href="/static/assets/logo.png">
+  <link rel="stylesheet" href="/static/css/main.css">
+  <link rel="stylesheet" href="/static/css/components.css">
+  <link rel="stylesheet" href="/static/css/workout.css">
+  <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+</head>
+<body class="app-layout">
+  <button class="mobile-menu-btn" id="mobile-menu-btn">☰</button>
+  <div class="sidebar-overlay" id="sidebar-overlay"></div>
+  <aside class="sidebar" id="sidebar"></aside>
+
+  <main class="main-content" style="padding-bottom:0">
+    <div class="page-header flex-between">
+      <div><h1>Community Chats</h1><p>Real-time group discussions</p></div>
+      <a href="/community.html" class="btn btn-outline btn-sm">📰 Feed</a>
+    </div>
+
+    <div class="grid-2" style="height:calc(100vh - 180px);gap:var(--space-lg)">
+      <!-- Room list -->
+      <div style="display:flex;flex-direction:column;gap:var(--space-md)">
+        <div id="rooms-list"><div class="skeleton skeleton-block"></div></div>
+      </div>
+
+      <!-- Chat area -->
+      <div>
+        <div id="chat-placeholder" class="card" style="height:100%;display:flex;align-items:center;justify-content:center;text-align:center">
+          <div><div class="empty-icon">💬</div><h3>Select a chat room</h3><p>Join a room to start chatting</p></div>
+        </div>
+        <div id="chat-area" style="display:none;height:100%">
+          <div class="chat-window" style="height:100%">
+            <div style="padding:var(--space-md) var(--space-lg);border-bottom:1px solid var(--bg-border);display:flex;align-items:center;justify-content:space-between">
+              <div>
+                <div style="font-weight:700" id="room-name"></div>
+                <div style="font-size:.75rem;color:var(--text-muted)"><span id="online-count">0</span> online</div>
+              </div>
+              <button class="btn btn-ghost btn-sm" onclick="leaveRoom()">Leave</button>
+            </div>
+            <div class="chat-messages" id="chat-messages"></div>
+            <div class="chat-input-row">
+              <input type="text" id="chat-input" class="form-control" placeholder="Message..." onkeydown="if(event.key==='Enter')sendMsg()">
+              <button class="btn btn-primary btn-icon" onclick="sendMsg()" style="border-radius:50%;width:44px;height:44px;flex-shrink:0">↑</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- Join modal -->
+  <div class="modal-backdrop" id="join-modal" style="display:none" onclick="if(event.target===this)closeModal('join-modal')">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 class="modal-title">Join <span id="join-room-name"></span></h3>
+        <button class="modal-close" onclick="closeModal('join-modal')">✕</button>
+      </div>
+      <input type="hidden" id="join-room-id">
+      <div class="form-group mb-lg">
+        <label class="form-label">Your display name in this room</label>
+        <input type="text" id="join-display" class="form-control" placeholder="Athlete name..." maxlength="30">
+      </div>
+      <button class="btn btn-primary btn-full" onclick="confirmJoin()">Join Room</button>
+    </div>
+  </div>
+
+  <div id="toast-container" class="toast-container"></div>
+  <script src="/static/js/utils.js"></script>
+  <script src="/static/js/api.js"></script>
+  <script>
+    let socket, CURRENT_ROOM = null;
+    const user = getUser() || {};
+
+    onReady(async () => {
+      requireAuth(); renderSidebar(); initMobileSidebar();
+      initSocket();
+      await loadRooms();
+      // Auto-join from URL
+      const params = new URLSearchParams(location.search);
+      const roomId = params.get('room');
+      if (roomId) openJoinOrChat(parseInt(roomId));
+    });
+
+    function initSocket() {
+      socket = io(window.location.origin, { transports:['websocket','polling'] });
+      socket.on('new_message', data => {
+        if (CURRENT_ROOM && data.room_id === CURRENT_ROOM) appendMsg(data);
+      });
+      socket.on('online_count', data => {
+        if (data.room_id == CURRENT_ROOM) document.getElementById('online-count').textContent = data.count;
+      });
+      socket.on('user_joined', d => showToast(`${d.display_name} joined`, 'info', 2000));
+    }
+
+    async function loadRooms() {
+      const data = await apiFetch('/api/chat/rooms', {}, false);
+      if (data._error) return;
+      document.getElementById('rooms-list').innerHTML = data.map(r => `
+        <div class="card card-sm" style="cursor:pointer;transition:border-color .2s" onmouseenter="this.style.borderColor='rgba(139,92,246,.3)'" onmouseleave="this.style.borderColor=''" onclick="openJoinOrChat(${r.id})">
+          <div class="flex-between">
+            <div><div style="font-weight:700">${r.name}</div><div style="font-size:.78rem;color:var(--text-muted)">${r.description||''}</div></div>
+            <div style="text-align:right">
+              <div class="badge ${r.is_member?'badge-green':'badge-violet'}">${r.is_member?'Joined':'Join'}</div>
+              <div style="font-size:.7rem;color:var(--text-muted);margin-top:4px">${r.member_count||0} members</div>
+            </div>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    async function openJoinOrChat(roomId) {
+      const room = await apiFetch(`/api/chat/rooms/${roomId}`, {}, false);
+      if (room._error) return;
+      if (!room.is_member) {
+        document.getElementById('join-room-id').value    = roomId;
+        document.getElementById('join-room-name').textContent = room.name;
+        const profile = await apiFetch('/api/athletes/profile', {}, false);
+        document.getElementById('join-display').value = profile?.display_name || user.display_name || '';
+        openModal('join-modal');
+      } else {
+        enterRoom(roomId, room.name, room.display_name);
+      }
+    }
+
+    async function confirmJoin() {
+      const roomId = document.getElementById('join-room-id').value;
+      const name   = document.getElementById('join-display').value.trim();
+      if (name.length < 2) { showToast('Name must be at least 2 chars','warning'); return; }
+      const res = await apiFetch(`/api/chat/rooms/${roomId}/join`, { method:'POST', body:{ display_name: name } });
+      if (!res._error) { closeModal('join-modal'); enterRoom(parseInt(roomId), '', name); await loadRooms(); }
+    }
+
+    async function enterRoom(roomId, name, displayName) {
+      if (CURRENT_ROOM) {
+        socket.emit('leave_room', { room_id: CURRENT_ROOM, user_id: user.user_id });
+      }
+      CURRENT_ROOM = roomId;
+      document.getElementById('chat-placeholder').style.display = 'none';
+      document.getElementById('chat-area').style.display = 'block';
+      document.getElementById('room-name').textContent = name || `Room ${roomId}`;
+
+      socket.emit('join_room', { room_id: roomId, user_id: user.user_id, display_name: displayName });
+
+      const msgs = await apiFetch(`/api/chat/rooms/${roomId}/messages`, {}, false);
+      const container = document.getElementById('chat-messages');
+      container.innerHTML = '';
+      if (!msgs._error) msgs.forEach(m => appendMsg(m));
+      container.scrollTop = container.scrollHeight;
+    }
+
+    function appendMsg(m) {
+      const container = document.getElementById('chat-messages');
+      const isMe = m.user_id === user.user_id;
+      const div  = document.createElement('div');
+      div.className = `chat-message ${isMe?'user':'assistant'}`;
+      const avatar = (m.display_name||m.profile_name||'?').substring(0,2).toUpperCase();
+      div.innerHTML = `
+        <div class="chat-avatar" style="${isMe?'background:var(--gradient-violet);color:white':''}">${avatar}</div>
+        <div>
+          ${!isMe ? `<div style="font-size:.72rem;color:var(--text-muted);margin-bottom:2px">${m.display_name}</div>` : ''}
+          <div class="chat-bubble">${escapeHtml(m.message)}</div>
+          <div style="font-size:.65rem;color:var(--text-xmuted);margin-top:2px;text-align:${isMe?'right':'left'}">${formatTimeAgo(m.sent_at)}</div>
+        </div>
+      `;
+      container.appendChild(div);
+      container.scrollTop = container.scrollHeight;
+    }
+
+    function sendMsg() {
+      const input = document.getElementById('chat-input');
+      const msg   = input.value.trim();
+      if (!msg || !CURRENT_ROOM) return;
+      socket.emit('send_message', {
+        room_id: CURRENT_ROOM,
+        user_id: user.user_id,
+        display_name: user.display_name || 'Athlete',
+        message: msg,
+      });
+      input.value = '';
+    }
+
+    async function leaveRoom() {
+      if (!CURRENT_ROOM) return;
+      socket.emit('leave_room', { room_id: CURRENT_ROOM, user_id: user.user_id });
+      await apiFetch(`/api/chat/rooms/${CURRENT_ROOM}/leave`, { method:'POST' });
+      CURRENT_ROOM = null;
+      document.getElementById('chat-placeholder').style.display = 'flex';
+      document.getElementById('chat-area').style.display = 'none';
+      await loadRooms();
+    }
+
+    function escapeHtml(s) { return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  </script>
+</body>
+</html>

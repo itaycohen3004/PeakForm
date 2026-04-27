@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <title>Saved Workouts — Reprise</title>
+  <link rel="stylesheet" href="/static/css/main.css">
+  <link rel="stylesheet" href="/static/css/components.css">
+</head>
+<body class="app-layout">
+  <button class="mobile-menu-btn" id="mobile-menu-btn">☰</button>
+  <div class="sidebar-overlay" id="sidebar-overlay"></div>
+  <aside class="sidebar" id="sidebar"></aside>
+
+  <main class="main-content">
+    <div class="page-header flex-between">
+      <div><h1>Saved Workouts & Presets</h1><p>Build reusable routines and set your weekly schedule</p></div>
+      <button class="btn btn-primary" onclick="openModal('new-tpl-modal')">+ Save as Preset</button>
+    </div>
+
+    <!-- Weekly schedule -->
+    <div class="card mb-xl">
+      <h3 class="card-title mb-lg">Weekly Schedule</h3>
+      <div id="schedule-grid" style="display:grid;grid-template-columns:repeat(7,1fr);gap:8px"></div>
+    </div>
+
+    <!-- Templates list -->
+    <div class="grid-2" id="templates-grid">
+      <div class="skeleton skeleton-block"></div>
+      <div class="skeleton skeleton-block"></div>
+    </div>
+  </main>
+
+  <!-- New template modal -->
+  <div class="modal-backdrop" id="new-tpl-modal" style="display:none" onclick="if(event.target===this)closeModal('new-tpl-modal')">
+    <div class="modal" style="max-width:520px">
+      <div class="modal-header">
+        <h3 class="modal-title">New Preset</h3>
+        <button class="modal-close" onclick="closeModal('new-tpl-modal')">✕</button>
+      </div>
+      <form onsubmit="createTemplate(event)">
+        <div class="form-group mb-md">
+          <label class="form-label">Workout Name *</label>
+          <input type="text" id="tpl-name" class="form-control" placeholder="e.g. Push Day, Pull Day, Legs..." required>
+        </div>
+        <div class="form-group mb-lg">
+          <label class="form-label">Notes</label>
+          <textarea id="tpl-notes" class="form-control" rows="2" placeholder="Any notes about this workout split..."></textarea>
+        </div>
+        <button type="submit" class="btn btn-primary btn-full">Create Preset</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Schedule assign modal -->
+  <div class="modal-backdrop" id="schedule-modal" style="display:none" onclick="if(event.target===this)closeModal('schedule-modal')">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 class="modal-title" id="schedule-modal-title">Assign Workout</h3>
+        <button class="modal-close" onclick="closeModal('schedule-modal')">✕</button>
+      </div>
+      <input type="hidden" id="schedule-weekday">
+      <div class="form-group mb-lg">
+        <label class="form-label">Template</label>
+        <select id="schedule-tpl-select" class="form-control"></select>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-primary btn-full" onclick="assignSchedule()">Assign</button>
+        <button class="btn btn-danger" onclick="clearSchedule()">Clear</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Specific date schedule modal -->
+  <div class="modal-backdrop" id="schedule-date-modal" style="display:none" onclick="if(event.target===this)closeModal('schedule-date-modal')">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 class="modal-title">Schedule Workout</h3>
+        <button class="modal-close" onclick="closeModal('schedule-date-modal')">✕</button>
+      </div>
+      <form onsubmit="confirmScheduleDate(event)">
+        <input type="hidden" id="sd-tpl-id">
+        <input type="hidden" id="sd-tpl-name">
+        <div class="form-group mb-lg">
+          <label class="form-label">Select Date (Future)</label>
+          <input type="date" id="sd-date" class="form-control" required>
+        </div>
+        <button type="submit" class="btn btn-primary btn-full">Schedule Session</button>
+      </form>
+    </div>
+  </div>
+
+  <div id="toast-container" class="toast-container"></div>
+  <script src="/static/js/utils.js"></script>
+  <script src="/static/js/api.js"></script>
+  <script>
+    const DAYS = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+    let templates = [], schedule = {};
+
+    onReady(async () => {
+      requireAuth(); renderSidebar(); initMobileSidebar();
+      await Promise.all([loadTemplates(), loadSchedule()]);
+    });
+
+    async function loadTemplates() {
+      const data = await apiFetch('/api/templates', {}, false);
+      if (data._error) return;
+      templates = data;
+      renderTemplates();
+      populateScheduleSelect();
+    }
+
+    async function loadSchedule() {
+      const data = await apiFetch('/api/templates/schedule', {}, false);
+      if (!data._error) {
+        schedule = {};
+        data.forEach(s => schedule[s.weekday] = s);
+      }
+      renderScheduleGrid();
+    }
+
+    function renderScheduleGrid() {
+      const grid = document.getElementById('schedule-grid');
+      grid.innerHTML = DAYS.map((day, i) => {
+        const s = schedule[i];
+        return `
+          <div style="text-align:center;cursor:pointer" onclick="openScheduleModal(${i})">
+            <div style="font-size:.7rem;font-weight:700;color:var(--text-muted);text-transform:uppercase;margin-bottom:6px">${day}</div>
+            <div class="card card-sm" style="padding:10px;min-height:60px;display:flex;align-items:center;justify-content:center;border-color:${s?'rgba(139,92,246,.35)':'var(--bg-border)'};background:${s?'rgba(139,92,246,.08)':'var(--bg-card)'}">
+              ${s ? `<span style="font-size:.78rem;font-weight:700;color:var(--violet-l);text-align:center">${s.template_name}</span>` : `<span style="color:var(--text-xmuted);font-size:.8rem">+ Set</span>`}
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function escapeAttr(s) { return (s||'').replace(/'/g,"\\'").replace(/"/g,"&quot;"); }
+
+    function renderTemplates() {
+      const grid = document.getElementById('templates-grid');
+      if (!templates.length) {
+        grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1"><div class="empty-icon">📋</div><h3>No templates yet</h3><p>Create your first split (Push Day, Pull Day…)</p></div>`;
+        return;
+      }
+      grid.innerHTML = templates.map(t => `
+        <div class="card">
+          <div class="flex-between mb-md">
+            <div><div style="font-weight:800;font-size:1rem">${t.name}</div><div style="font-size:.75rem;color:var(--text-muted);margin-top:2px">${t.exercise_count||0} exercises</div></div>
+            <button class="btn btn-ghost btn-icon" onclick="deleteTemplate(${t.id})">🗑</button>
+          </div>
+          ${t.notes ? `<p style="font-size:.82rem;color:var(--text-muted);margin-bottom:var(--space-md)">${t.notes}</p>` : ''}
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <a href="/log-workout.html?from_template=${t.id}" class="btn btn-primary btn-sm">▶ Start</a>
+            <button onclick="openScheduleDateModal(${t.id}, '${escapeAttr(t.name)}')" class="btn btn-outline btn-sm">📅 Schedule</button>
+            <a href="/template-editor.html?id=${t.id}" class="btn btn-outline btn-sm">✏️ Edit</a>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function openScheduleDateModal(id, name) {
+      document.getElementById('sd-tpl-id').value = id;
+      document.getElementById('sd-tpl-name').value = name;
+      
+      const f = new Date(); f.setDate(f.getDate() + 1);
+      document.getElementById('sd-date').value = f.toISOString().split('T')[0];
+      
+      openModal('schedule-date-modal');
+    }
+
+    async function confirmScheduleDate(e) {
+      e.preventDefault();
+      const res = await apiFetch('/api/workouts/from-template', {
+        method: 'POST',
+        body: {
+          template_id: parseInt(document.getElementById('sd-tpl-id').value),
+          workout_date: document.getElementById('sd-date').value,
+          name: document.getElementById('sd-tpl-name').value
+        }
+      });
+      if (!res._error) {
+        closeModal('schedule-date-modal');
+        showToast('Workout successfully scheduled! View on dashboard.', 'success');
+      }
+    }
+
+    function populateScheduleSelect() {
+      const sel = document.getElementById('schedule-tpl-select');
+      sel.innerHTML = templates.map(t => `<option value="${t.id}">${t.name}</option>`).join('');
+    }
+
+    function openScheduleModal(weekday) {
+      document.getElementById('schedule-weekday').value = weekday;
+      document.getElementById('schedule-modal-title').textContent = `${DAYS[weekday]} — Assign Template`;
+      if (schedule[weekday]) {
+        document.getElementById('schedule-tpl-select').value = schedule[weekday].template_id;
+      }
+      openModal('schedule-modal');
+    }
+
+    async function assignSchedule() {
+      const weekday = parseInt(document.getElementById('schedule-weekday').value);
+      const tplId   = parseInt(document.getElementById('schedule-tpl-select').value);
+      const res = await apiFetch('/api/templates/schedule', { method:'POST', body:{ weekday, template_id: tplId } });
+      if (!res._error) { closeModal('schedule-modal'); await loadSchedule(); showToast('Schedule updated!','success'); }
+    }
+
+    async function clearSchedule() {
+      const weekday = parseInt(document.getElementById('schedule-weekday').value);
+      await apiFetch(`/api/templates/schedule/${weekday}`, { method:'DELETE' });
+      closeModal('schedule-modal');
+      await loadSchedule();
+    }
+
+    async function createTemplate(e) {
+      e.preventDefault();
+      const res = await apiFetch('/api/templates', { method:'POST', body:{
+        name:  document.getElementById('tpl-name').value.trim(),
+        notes: document.getElementById('tpl-notes').value.trim(),
+      }});
+      if (!res._error) {
+        closeModal('new-tpl-modal');
+        showToast('Template created!','success');
+        await loadTemplates();
+        window.location.href = `/template-editor.html?id=${res.id}`;
+      }
+    }
+
+    async function deleteTemplate(id) {
+      if (!confirm('Delete this template?')) return;
+      await apiFetch(`/api/templates/${id}`, { method:'DELETE' });
+      await loadTemplates();
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+  <title>Progression — Reprise</title>
+  <link rel="icon" href="/static/assets/logo.png">
+  <link rel="stylesheet" href="/static/css/main.css">
+  <link rel="stylesheet" href="/static/css/components.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+</head>
+<body class="app-layout">
+  <button class="mobile-menu-btn" id="mobile-menu-btn">☰</button>
+  <div class="sidebar-overlay" id="sidebar-overlay"></div>
+  <aside class="sidebar" id="sidebar"></aside>
+
+  <main class="main-content">
+    <div class="page-header flex-between">
+      <div><h1>Exercise Progression</h1><p>Track your performance over time on any exercise</p></div>
+    </div>
+
+    <!-- Exercise selector -->
+    <div class="card mb-xl">
+      <div class="search-wrap">
+        <span class="search-icon">🔍</span>
+        <input type="text" id="ex-search" class="form-control" placeholder="Search exercise..." oninput="searchForEx(this.value)">
+        <div class="exercise-dropdown" id="ex-dropdown" style="position:absolute;top:calc(100%+6px);left:0;right:0;background:var(--bg-card);border:1px solid var(--bg-border);border-radius:var(--radius-md);max-height:240px;overflow-y:auto;z-index:100;display:none"></div>
+      </div>
+    </div>
+
+    <div id="progress-content" style="display:none">
+      <!-- PRs -->
+      <div class="stats-grid mb-xl" id="pr-stats"></div>
+
+      <!-- Chart -->
+      <div class="card mb-xl">
+        <div class="card-header mb-lg">
+          <h3 class="card-title" id="chart-title">Progression Chart</h3>
+          <div style="display:flex;gap:6px">
+            <button class="btn btn-ghost btn-sm" onclick="setMetric('weight')">Weight</button>
+            <button class="btn btn-ghost btn-sm" onclick="setMetric('reps')">Reps</button>
+            <button class="btn btn-ghost btn-sm" onclick="setMetric('time')">Time</button>
+          </div>
+        </div>
+        <canvas id="prog-chart" height="200"></canvas>
+      </div>
+
+      <!-- AI Analysis -->
+      <div class="card mb-xl">
+        <div class="card-header mb-lg">
+          <h3 class="card-title">🤖 AI Coaching Insight</h3>
+          <button class="btn btn-primary btn-sm" onclick="getAIAnalysis()">Analyze</button>
+        </div>
+        <div id="ai-insight" style="color:var(--text-muted);font-size:.9rem">Click Analyze to get AI recommendations for this exercise based on your history.</div>
+      </div>
+
+      <!-- History table -->
+      <div class="card">
+        <h3 class="card-title mb-lg">Set History</h3>
+        <div id="history-table" class="table-wrapper"></div>
+      </div>
+    </div>
+  </main>
+
+  <div id="toast-container" class="toast-container"></div>
+  <script src="/static/js/utils.js"></script>
+  <script src="/static/js/api.js"></script>
+  <script>
+    let EXERCISE_ID = null, EXERCISE_NAME = '', PROG_DATA = [], CURRENT_METRIC = 'weight';
+    let chart = null, _t;
+
+    onReady(async () => {
+      requireAuth(); renderSidebar(); initMobileSidebar();
+      // Pre-select from URL
+      const params = new URLSearchParams(location.search);
+      const exId = params.get('exercise_id');
+      if (exId) {
+        const ex = await apiFetch(`/api/exercises/${exId}`, {}, false);
+        if (!ex._error) selectExercise(ex.id, ex.name, ex.set_type);
+      }
+      document.addEventListener('click', e => {
+        if (!e.target.closest('.card')) document.getElementById('ex-dropdown').style.display='none';
+      });
+    });
+
+    function searchForEx(q) {
+      clearTimeout(_t);
+      _t = setTimeout(async () => {
+        const res = await apiFetch(`/api/exercises?q=${encodeURIComponent(q)}&limit=20`, {}, false);
+        const dd = document.getElementById('ex-dropdown');
+        if (!res?.length) { dd.style.display='none'; return; }
+        dd.innerHTML = res.map(ex => `<div style="padding:10px 14px;cursor:pointer;border-bottom:1px solid var(--bg-border);font-size:.88rem" onmousedown="selectExercise(${ex.id},'${ex.name.replace(/'/g,"\\'")}','${ex.set_type}')">${ex.name} <span style="font-size:.72rem;color:var(--text-muted)">(${ex.category})</span></div>`).join('');
+        dd.style.display = 'block';
+      }, 220);
+    }
+
+    async function selectExercise(id, name, setType) {
+      EXERCISE_ID   = id;
+      EXERCISE_NAME = name;
+      document.getElementById('ex-search').value = name;
+      document.getElementById('ex-dropdown').style.display = 'none';
+      document.getElementById('progress-content').style.display = 'block';
+      document.getElementById('chart-title').textContent = name;
+
+      const [prs, prog, history] = await Promise.all([
+        apiFetch(`/api/exercises/${id}/prs`, {}, false),
+        apiFetch(`/api/workouts/progression/${id}?limit=30`, {}, false),
+        apiFetch(`/api/exercises/${id}/history?limit=30`, {}, false),
+      ]);
+
+      // PRs
+      document.getElementById('pr-stats').innerHTML = `
+        <div class="stat-card"><div class="stat-icon">🏆</div><div class="stat-value">${prs.max_weight_kg||'—'}</div><div class="stat-label">Max Weight (kg)</div></div>
+        <div class="stat-card"><div class="stat-icon">🔁</div><div class="stat-value">${prs.max_reps||'—'}</div><div class="stat-label">Max Reps</div></div>
+        <div class="stat-card"><div class="stat-icon">⏱️</div><div class="stat-value">${prs.max_time_seconds ? formatSeconds(prs.max_time_seconds) : '—'}</div><div class="stat-label">Max Time</div></div>
+      `;
+
+      PROG_DATA = prog._error ? [] : prog;
+      renderChart(CURRENT_METRIC);
+
+      // History table
+      if (history._error || !history.length) {
+        document.getElementById('history-table').innerHTML = `<div class="empty-state"><div class="empty-icon">📊</div><p>No history yet — log this exercise to see progression.</p></div>`;
+      } else {
+        document.getElementById('history-table').innerHTML = `<table class="table">
+          <thead><tr><th>Date</th><th>Weight</th><th>Reps</th><th>Time</th><th>RPE</th></tr></thead>
+          <tbody>${history.map(s => `<tr><td>${formatDate(s.workout_date)}</td><td>${s.weight_kg||'—'}</td><td>${s.reps||'—'}</td><td>${s.duration_seconds?formatSeconds(s.duration_seconds):'—'}</td><td>${s.rpe||'—'}</td></tr>`).join('')}</tbody>
+        </table>`;
+      }
+      document.getElementById('ai-insight').textContent = 'Click Analyze to get AI recommendations.';
+    }
+
+    function setMetric(m) { CURRENT_METRIC = m; renderChart(m); }
+
+    function renderChart(metric) {
+      if (!PROG_DATA.length) return;
+      const labels = PROG_DATA.map(d => d.workout_date);
+      const vals   = PROG_DATA.map(d => {
+        if (metric==='weight') return d.best_weight;
+        if (metric==='reps')   return d.best_reps;
+        return d.best_time;
+      });
+      const label  = metric === 'weight' ? 'Weight (kg)' : metric === 'reps' ? 'Reps' : 'Time (s)';
+      if (chart) chart.destroy();
+      chart = new Chart(document.getElementById('prog-chart'), {
+        type: 'line',
+        data: { labels, datasets: [{ label, data: vals, borderColor:'#8B5CF6', backgroundColor:'rgba(139,92,246,.1)', fill:true, tension:.3, pointRadius:4, pointBackgroundColor:'#8B5CF6' }] },
+        options: { responsive:true, plugins:{ legend:{ display:false } }, scales: { x:{ grid:{color:'rgba(255,255,255,.05)'}, ticks:{color:'#6B6B80'} }, y:{grid:{color:'rgba(255,255,255,.05)'}, ticks:{color:'#6B6B80'}} } }
+      });
+    }
+
+    async function getAIAnalysis() {
+      if (!EXERCISE_ID) return;
+      document.getElementById('ai-insight').textContent = 'Analyzing...';
+      const res = await apiFetch(`/api/ai/analyze/${EXERCISE_ID}`, { method:'POST' });
+      if (res._error) { document.getElementById('ai-insight').textContent = 'Analysis failed.'; return; }
+      document.getElementById('ai-insight').innerHTML = `
+        <div style="display:flex;gap:var(--space-lg);flex-wrap:wrap;margin-bottom:var(--space-md)">
+          ${res.next_weight !== null ? `<div class="stat-card" style="flex:1;min-width:120px"><div class="stat-value" style="color:var(--violet-l)">${res.next_weight} kg</div><div class="stat-label">Target Weight</div></div>` : ''}
+          ${res.next_reps   !== null ? `<div class="stat-card" style="flex:1;min-width:120px"><div class="stat-value" style="color:var(--amber)">${res.next_reps}</div><div class="stat-label">Target Reps</div></div>` : ''}
+          ${res.next_time_seconds !== null ? `<div class="stat-card" style="flex:1;min-width:120px"><div class="stat-value" style="color:var(--teal-l)">${formatSeconds(res.next_time_seconds)}</div><div class="stat-label">Target Time</div></div>` : ''}
+        </div>
+        <p style="color:var(--text-secondary);font-size:.9rem">${res.progression_note}</p>
+        <div style="margin-top:8px"><span class="badge ${res.confidence==='high'?'badge-green':res.confidence==='medium'?'badge-amber':'badge-muted'}">Confidence: ${res.confidence}</span></div>
+      `;
+    }
+  </script>
+</body>
+</html>

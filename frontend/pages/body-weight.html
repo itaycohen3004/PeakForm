@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+  <title>Body Weight — Reprise</title>
+  <link rel="icon" href="/static/assets/logo.png">
+  <link rel="stylesheet" href="/static/css/main.css">
+  <link rel="stylesheet" href="/static/css/components.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+</head>
+<body class="app-layout">
+  <button class="mobile-menu-btn" id="mobile-menu-btn">☰</button>
+  <div class="sidebar-overlay" id="sidebar-overlay"></div>
+  <aside class="sidebar" id="sidebar"></aside>
+
+  <main class="main-content">
+    <div class="page-header flex-between">
+      <div><h1>Body Weight</h1><p>Track your weight and upload progress photos</p></div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-ghost" onclick="openTargetModal()">🎯 Target</button>
+        <button class="btn btn-primary" onclick="openModal('log-modal')">+ Log Weight</button>
+      </div>
+    </div>
+
+    <!-- Current + Change -->
+    <div class="stats-grid mb-xl" style="grid-template-columns: 1fr 1fr 1fr 1fr">
+      <div class="stat-card"><div class="stat-icon">⚖️</div><div class="stat-value" id="current-bw">—</div><div class="stat-label">Current (kg)</div></div>
+      <div class="stat-card"><div class="stat-icon">🎯</div><div class="stat-value" id="target-bw">—</div><div class="stat-label">Target (kg)</div></div>
+      <div class="stat-card"><div class="stat-icon">📉</div><div class="stat-value" id="bw-change">—</div><div class="stat-label">30-Day Change</div></div>
+      <div class="stat-card"><div class="stat-icon">📊</div><div class="stat-value" id="bw-entries">—</div><div class="stat-label">Entries Logged</div></div>
+    </div>
+
+    <!-- Chart -->
+    <div class="card mb-xl">
+      <div class="card-header mb-lg">
+        <h3 class="card-title">Weight Progress</h3>
+        <div style="display:flex;gap:6px">
+          <button class="btn btn-ghost btn-sm" onclick="setRange(30)">30d</button>
+          <button class="btn btn-ghost btn-sm" onclick="setRange(60)">60d</button>
+          <button class="btn btn-ghost btn-sm" onclick="setRange(90)">90d</button>
+        </div>
+      </div>
+      <canvas id="bw-chart" height="200"></canvas>
+    </div>
+
+    <!-- Log history -->
+    <div class="card">
+      <h3 class="card-title mb-lg">Log History</h3>
+      <div id="bw-list" class="table-wrapper"></div>
+    </div>
+  </main>
+
+  <!-- Log modal -->
+  <div class="modal-backdrop" id="log-modal" style="display:none" onclick="if(event.target===this)closeModal('log-modal')">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 class="modal-title">Log Body Weight</h3>
+        <button class="modal-close" onclick="closeModal('log-modal')">✕</button>
+      </div>
+      <form onsubmit="logWeight(event)">
+        <div class="form-row mb-md">
+          <div class="form-group">
+            <label class="form-label">Weight (kg) *</label>
+            <input type="number" step="0.1" id="bw-weight" class="form-control" placeholder="75.5" required min="20" max="300">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Date</label>
+            <input type="date" id="bw-date" class="form-control">
+          </div>
+        </div>
+        <div class="form-group mb-lg">
+          <label class="form-label">Notes (optional)</label>
+          <input type="text" id="bw-notes" class="form-control" placeholder="After morning, after gym...">
+        </div>
+        <button type="submit" class="btn btn-primary btn-full">Save Weight</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Target Weight Goal Modal -->
+  <div class="modal-backdrop" id="target-modal" style="display:none" onclick="if(event.target===this)closeModal('target-modal')">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 class="modal-title">Set Target Weight 🎯</h3>
+        <button class="modal-close" onclick="closeModal('target-modal')">✕</button>
+      </div>
+      <form onsubmit="setTargetWeight(event)">
+        <div class="form-row mb-md">
+          <div class="form-group">
+            <label class="form-label">Current Weight</label>
+            <input type="number" step="0.1" id="tw-current" class="form-control" readonly>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Target Weight (kg) *</label>
+            <input type="number" step="0.1" id="tw-target" class="form-control" placeholder="70.0" required>
+          </div>
+        </div>
+        <div class="form-group mb-lg">
+          <label class="form-label">Deadline (optional)</label>
+          <div style="display:flex;gap:8px">
+            <input type="date" id="tw-deadline" class="form-control">
+            <button type="button" class="btn btn-outline btn-icon" title="AI Suggest Timeline" onclick="suggestTwDeadline()" id="tw-ai-btn">🪄</button>
+          </div>
+          <div id="tw-ai-reasoning" style="font-size:.75rem;color:var(--violet-l);margin-top:6px;display:none"></div>
+        </div>
+        <button type="submit" class="btn btn-primary btn-full">Save Target</button>
+      </form>
+    </div>
+  </div>
+
+  <div id="toast-container" class="toast-container"></div>
+  <script src="/static/js/utils.js"></script>
+  <script src="/static/js/api.js"></script>
+  <script>
+    let allLogs = [], chart = null;
+    let currentTargetGoal = null;
+
+    onReady(async () => {
+      requireAuth(); renderSidebar(); initMobileSidebar();
+      document.getElementById('bw-date').value = todayISO();
+      await loadLogs();
+      await loadTargetGoal();
+    });
+
+    async function loadTargetGoal() {
+      const data = await apiFetch('/api/goals', {}, false);
+      if (!data._error) {
+        // Find body_weight_target goal
+        currentTargetGoal = data.find(g => g.goal_type === 'body_weight_target' && !g.is_completed);
+        if (currentTargetGoal) {
+          document.getElementById('target-bw').textContent = currentTargetGoal.target_value.toFixed(1);
+        } else {
+          document.getElementById('target-bw').textContent = '—';
+        }
+      }
+    }
+
+    function openTargetModal() {
+      const cur = allLogs.length ? allLogs[0].weight_kg : 0;
+      document.getElementById('tw-current').value = cur.toFixed(1);
+      if (currentTargetGoal) {
+        document.getElementById('tw-target').value = currentTargetGoal.target_value;
+        if (currentTargetGoal.deadline) document.getElementById('tw-deadline').value = currentTargetGoal.deadline;
+      }
+      openModal('target-modal');
+    }
+
+    async function suggestTwDeadline() {
+      const btn = document.getElementById('tw-ai-btn');
+      btn.textContent = '...';
+      const cur = document.getElementById('tw-current').value;
+      const tar = document.getElementById('tw-target').value;
+      if (!cur || !tar) { showToast('Missing inputs', 'warning'); btn.textContent='🪄'; return; }
+      
+      const res = await apiFetch('/api/ai/suggest-deadline', { method:'POST', body: {
+        title: "Body Weight Target", target_value: tar, current_value: cur, unit: "kg"
+      } }, false);
+      btn.textContent = '🪄';
+      if (res && res.suggested_deadline_days) {
+        const d = new Date(Date.now() + res.suggested_deadline_days * 86400000);
+        document.getElementById('tw-deadline').value = d.toISOString().split('T')[0];
+        document.getElementById('tw-ai-reasoning').textContent = 'AI: ' + res.reasoning;
+        document.getElementById('tw-ai-reasoning').style.display = 'block';
+      } else {
+        showToast('Not enough data to calculate deadline', 'warning');
+      }
+    }
+
+    async function setTargetWeight(e) {
+      e.preventDefault();
+      const cur = parseFloat(document.getElementById('tw-current').value)||0;
+      const tar = parseFloat(document.getElementById('tw-target').value);
+      const deadline = document.getElementById('tw-deadline').value || null;
+      
+      // If we already have one, we can either update or simply delete and recreate it.
+      if (currentTargetGoal) {
+         await apiFetch(`/api/goals/${currentTargetGoal.id}`, { method:'DELETE' });
+      }
+      const res = await apiFetch('/api/goals', { method:'POST', body: {
+        goal_type: 'body_weight_target',
+        title: 'Target Body Weight',
+        target_value: tar,
+        starting_value: cur,
+        current_value: cur,
+        unit: 'kg',
+        deadline: deadline
+      }});
+      if (!res._error) { 
+        closeModal('target-modal'); 
+        showToast('Target updated!', 'success'); 
+        await loadTargetGoal(); 
+      }
+    }
+
+    async function loadLogs() {
+      const data = await apiFetch('/api/body-weight?limit=90', {}, false);
+      if (data._error) return;
+      allLogs = data;
+      renderStats();
+      renderChart(Math.min(30, data.length));
+      renderList();
+    }
+
+    function renderStats() {
+      if (!allLogs.length) return;
+      const latest  = allLogs[0];
+      const ago30   = allLogs.find(l => new Date(l.logged_at) <= new Date(Date.now() - 30*86400000));
+      document.getElementById('current-bw').textContent = latest.weight_kg.toFixed(1);
+      document.getElementById('bw-entries').textContent = allLogs.length;
+      if (ago30) {
+        const diff = (latest.weight_kg - ago30.weight_kg).toFixed(1);
+        const el = document.getElementById('bw-change');
+        el.textContent = (diff > 0 ? '+' : '') + diff + ' kg';
+        el.style.color = diff > 0 ? 'var(--red-l)' : diff < 0 ? 'var(--green)' : 'var(--text-muted)';
+      }
+    }
+
+    function setRange(days) { renderChart(days); }
+
+    function renderChart(days) {
+      const slice  = allLogs.slice(0, days).reverse();
+      const labels = slice.map(l => l.logged_at);
+      const vals   = slice.map(l => l.weight_kg);
+      if (chart) chart.destroy();
+      chart = new Chart(document.getElementById('bw-chart'), {
+        type: 'line',
+        data: { labels, datasets: [{ label:'Weight (kg)', data: vals, borderColor:'#F59E0B', backgroundColor:'rgba(245,158,11,.1)', fill:true, tension:.3, pointRadius:4, pointBackgroundColor:'#F59E0B' }] },
+        options: { responsive:true, plugins:{legend:{display:false}}, scales:{ x:{grid:{color:'rgba(255,255,255,.05)'},ticks:{color:'#6B6B80',maxTicksLimit:8}}, y:{grid:{color:'rgba(255,255,255,.05)'},ticks:{color:'#6B6B80'}} } }
+      });
+    }
+
+    function renderList() {
+      if (!allLogs.length) {
+        document.getElementById('bw-list').innerHTML = `<div class="empty-state"><div class="empty-icon">⚖️</div><h3>No entries yet</h3><p>Log your first weight above</p></div>`;
+        return;
+      }
+      document.getElementById('bw-list').innerHTML = `<table class="table">
+        <thead><tr><th>Date</th><th>Weight (kg)</th><th>Notes</th><th></th></tr></thead>
+        <tbody>${allLogs.map(l => `
+          <tr>
+            <td>${formatDate(l.logged_at)}</td>
+            <td><strong>${l.weight_kg.toFixed(1)} kg</strong></td>
+            <td style="color:var(--text-muted)">${l.notes||'—'}</td>
+            <td><button class="btn btn-ghost btn-sm" onclick="deleteLog(${l.id})">✕</button></td>
+          </tr>
+        `).join('')}</tbody>
+      </table>`;
+    }
+
+    async function logWeight(e) {
+      e.preventDefault();
+      const w = parseFloat(document.getElementById('bw-weight').value);
+      const res = await apiFetch('/api/body-weight', { method:'POST', body:{
+        weight_kg: w,
+        logged_at: document.getElementById('bw-date').value,
+        notes: document.getElementById('bw-notes').value,
+      }});
+      if (!res._error) { 
+        closeModal('log-modal'); 
+        showToast('Weight logged!','success'); 
+        await loadLogs(); 
+        
+        // Update goal progress if there is a target
+        if (currentTargetGoal) {
+          const gRes = await apiFetch(`/api/goals/${currentTargetGoal.id}/progress`, { 
+            method:'PATCH', body:{ current_value: w } 
+          });
+          if (gRes && gRes.is_completed) {
+            showToast('Target weight achieved! 🏆', 'success');
+          }
+          await loadTargetGoal();
+        }
+      }
+    }
+
+    async function deleteLog(id) {
+      if (!confirm('Delete this entry?')) return;
+      await apiFetch(`/api/body-weight/${id}`, { method:'DELETE' });
+      await loadLogs();
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,584 @@
+/**
+ * PeakForm — Workout Logger
+ * Handles all workout logging logic including auto-save.
+ */
+
+let workoutId   = null;
+let workoutStart = null;
+let exercises   = [];     // {exercise_id, name, set_type, weId, sets:[...]}
+let allExercises = [];
+let timerInterval = null;
+let autoSaveInterval = null;
+let isDraft = false;
+
+// ── Init ──────────────────────────────────────────────────────
+
+onReady(async () => {
+  requireAuth();
+  await renderSidebar();
+  initMobileSidebar();
+
+  document.getElementById('workout-date').value = todayISO();
+  
+  const searchInput = document.getElementById('exercise-search');
+  if (searchInput) {
+    searchInput.addEventListener('focus', () => searchExercises(''));
+  }
+
+  const params = new URLSearchParams(window.location.search);
+  const fromTemplate = params.get('from_template');
+  const workoutIdParam = params.get('workout_id');
+  const restoreParam = params.get('restore');
+
+  if (fromTemplate) {
+    await startFromTemplate(parseInt(fromTemplate));
+  } else if (workoutIdParam) {
+    await resumeWorkout(parseInt(workoutIdParam));
+  } else if (restoreParam && hasDraft('active_workout')) {
+    restoreFromDraft();
+  } else {
+    // Show start options
+    showStartOptions();
+  }
+});
+
+// ── Start Options ─────────────────────────────────────────────
+
+async function showStartOptions() {
+  document.getElementById('start-options').style.display = 'block';
+  document.getElementById('workout-logger').style.display = 'none';
+  document.getElementById('summary-bar').style.display = 'none';
+
+  // Check if draft exists
+  if (hasDraft('active_workout')) {
+    document.getElementById('resume-card').style.display = 'block';
+  }
+
+  // Load templates for selector
+  const data = await apiFetch('/api/templates', {}, false);
+  if (!data._error) {
+    const list = document.getElementById('template-list');
+    if (!data.length) {
+      list.innerHTML = `<div class="empty-state" style="padding:var(--space-lg)">
+        <p>No templates yet. <a href="/templates.html">Create one →</a></p>
+      </div>`;
+    } else {
+      list.innerHTML = data.map(t => `
+        <div class="template-select-row" onclick="startFromTemplate(${t.id})">
+          <div style="font-weight:700">${escHtml(t.name)}</div>
+          <div style="font-size:.8rem;color:var(--text-muted)">${t.exercise_count || 0} exercises · ${t.training_type || ''}</div>
+          <div class="btn btn-primary btn-sm" style="margin-left:auto">Select →</div>
+        </div>
+      `).join('');
+    }
+  }
+}
+
+function startCustom() {
+  document.getElementById('start-options').style.display = 'none';
+  startWorkoutLogger('Custom Workout');
+}
+
+function showTemplateSelector() {
+  document.getElementById('template-selector').style.display = 'block';
+}
+
+function hideTemplateSelector() {
+  document.getElementById('template-selector').style.display = 'none';
+}
+
+function checkResumeDraft() {
+  restoreFromDraft();
+}
+
+// ── Workout Logger ────────────────────────────────────────────
+
+function startWorkoutLogger(name = '') {
+  document.getElementById('start-options').style.display = 'none';
+  document.getElementById('workout-logger').style.display = 'block';
+  document.getElementById('summary-bar').style.display = 'flex';
+  document.getElementById('workout-name').value = name;
+  workoutStart = Date.now();
+  startTimer();
+  startAutoSave();
+  loadExerciseList();
+}
+
+async function startFromTemplate(templateId) {
+  showLoading('Loading template...');
+  const tpl = await apiFetch(`/api/templates/${templateId}`, {}, false);
+  hideLoading();
+  if (tpl._error) { showToast('Failed to load template', 'error'); return; }
+
+  document.getElementById('start-options').style.display = 'none';
+  document.getElementById('workout-logger').style.display = 'block';
+  document.getElementById('summary-bar').style.display = 'flex';
+  document.getElementById('workout-name').value = tpl.name;
+
+  workoutStart = Date.now();
+  startTimer();
+
+  exercises = [];
+  for (const ex of (tpl.exercises || [])) {
+    const exObj = {
+      exercise_id: ex.exercise_id,
+      name:        ex.exercise_name,
+      set_type:    ex.set_type || 'reps_weight',
+      weId:        null,
+      sets:        [],
+    };
+    // Pre-fill sets from template
+    const setCount = ex.default_sets || 3;
+    for (let i = 0; i < setCount; i++) {
+      exObj.sets.push({
+        set_number: i + 1,
+        weight_kg:  ex.sets?.[i]?.target_weight || null,
+        reps:       ex.default_reps || ex.sets?.[i]?.target_reps || null,
+        duration_seconds: null,
+        is_warmup: false,
+      });
+    }
+    exercises.push(exObj);
+  }
+
+  renderExercises();
+  startAutoSave();
+  loadExerciseList();
+  showToast(`Template "${tpl.name}" loaded!`, 'success');
+}
+
+async function resumeWorkout(workoutId_) {
+  const data = await apiFetch(`/api/workouts/${workoutId_}`);
+  if (data._error) { showStartOptions(); return; }
+
+  workoutId = workoutId_;
+  document.getElementById('start-options').style.display = 'none';
+  document.getElementById('workout-logger').style.display = 'block';
+  document.getElementById('summary-bar').style.display = 'flex';
+  document.getElementById('workout-name').value = data.name || '';
+  document.getElementById('workout-date').value = data.workout_date || todayISO();
+  document.getElementById('workout-notes').value = data.notes || '';
+
+  exercises = (data.exercises || []).map(ex => ({
+    exercise_id: ex.exercise_id,
+    name:        ex.exercise_name,
+    set_type:    ex.set_type || 'reps_weight',
+    weId:        ex.id,
+    sets:        (ex.sets || []).map(s => ({
+      id:               s.id,
+      set_number:       s.set_number,
+      weight_kg:        s.weight_kg,
+      reps:             s.reps,
+      duration_seconds: s.duration_seconds,
+      is_warmup:        s.is_warmup,
+    })),
+  }));
+
+  workoutStart = Date.now();
+  startTimer();
+  renderExercises();
+  startAutoSave();
+  loadExerciseList();
+}
+
+function restoreFromDraft() {
+  const draft = loadDraft('active_workout');
+  if (!draft) { showStartOptions(); return; }
+
+  document.getElementById('start-options').style.display = 'none';
+  document.getElementById('workout-logger').style.display = 'block';
+  document.getElementById('summary-bar').style.display = 'flex';
+  document.getElementById('workout-name').value = draft.name || '';
+  document.getElementById('workout-date').value = draft.date || todayISO();
+  document.getElementById('workout-notes').value = draft.notes || '';
+
+  workoutId = draft.workoutId || null;
+  exercises = draft.exercises || [];
+  workoutStart = draft.startTime ? (Date.now() - (draft.savedAt - draft.startTime)) : Date.now();
+
+  isDraft = true;
+  renderExercises();
+  startTimer();
+  startAutoSave();
+  loadExerciseList();
+  showToast('Draft restored — keep going! 💪', 'success');
+}
+
+// ── Timer ─────────────────────────────────────────────────────
+
+function startTimer() {
+  clearInterval(timerInterval);
+  timerInterval = setInterval(() => {
+    const elapsed = Math.floor((Date.now() - workoutStart) / 1000);
+    const h = Math.floor(elapsed / 3600);
+    const m = Math.floor((elapsed % 3600) / 60);
+    const s = elapsed % 60;
+    const fmt = h > 0
+      ? `${h}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`
+      : `${m}:${String(s).padStart(2,'0')}`;
+    const timerEl = document.getElementById('workout-timer');
+    if (timerEl) timerEl.textContent = fmt;
+    const sumEl = document.getElementById('sum-duration');
+    if (sumEl) sumEl.textContent = fmt;
+  }, 1000);
+}
+
+// ── Auto Save ─────────────────────────────────────────────────
+
+function startAutoSave() {
+  clearInterval(autoSaveInterval);
+  autoSaveInterval = setInterval(performAutoSave, 15000); // every 15s
+  // Also save on visibility change
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) performAutoSave();
+  });
+  window.addEventListener('beforeunload', performAutoSave);
+}
+
+function performAutoSave() {
+  const draft = buildDraftData();
+  saveDraft('active_workout', draft);
+  const indicator = document.getElementById('autosave-indicator');
+  if (indicator) {
+    indicator.textContent = '💾 Saved';
+    setTimeout(() => { if (indicator) indicator.textContent = ''; }, 2000);
+  }
+}
+
+function buildDraftData() {
+  return {
+    workoutId,
+    name:      document.getElementById('workout-name')?.value || '',
+    date:      document.getElementById('workout-date')?.value || todayISO(),
+    notes:     document.getElementById('workout-notes')?.value || '',
+    exercises: exercises.map(ex => ({
+      exercise_id: ex.exercise_id,
+      name:        ex.name,
+      set_type:    ex.set_type,
+      weId:        ex.weId,
+      sets:        ex.sets,
+    })),
+    startTime: workoutStart,
+    savedAt:   Date.now(),
+  };
+}
+
+// ── Exercise Management ────────────────────────────────────────
+
+async function loadExerciseList() {
+  const data = await apiFetch('/api/exercises', {}, false);
+  if (!data._error) allExercises = data;
+}
+
+function searchExercises(query) {
+  const dropdown = document.getElementById('exercise-dropdown');
+  const q = query ? query.toLowerCase() : '';
+  
+  let matches = allExercises;
+  if (q) {
+    if (q.startsWith('cat:')) {
+      const cat = q.replace('cat:','');
+      matches = allExercises.filter(e => e.category.toLowerCase() === cat);
+    } else {
+      matches = allExercises.filter(e => 
+        e.name.toLowerCase().includes(q) || 
+        e.category.toLowerCase().includes(q) ||
+        (e.muscles && e.muscles.toLowerCase().includes(q))
+      );
+    }
+  }
+  
+  if (!matches.length) { 
+    dropdown.innerHTML = '<div style="padding:1rem;color:var(--text-muted);text-align:center">No exercises found</div>';
+  } else {
+    dropdown.innerHTML = matches.slice(0, 50).map(e => `
+      <div class="exercise-option" onclick="addExercise(${e.id}, ${JSON.stringify(e.name).replace(/"/g,'&quot;')}, '${e.set_type}')">
+        <span class="ex-icon">${categoryIcon(e.category)}</span>
+        <div class="ex-info">
+          <div class="ex-name">${escHtml(e.name)}</div>
+          <div class="ex-meta">${escHtml(e.category)} ${e.muscles ? '· ' + escHtml(e.muscles) : ''}</div>
+        </div>
+        <span class="btn btn-ghost btn-sm" style="margin-left:auto">+</span>
+      </div>
+    `).join('');
+  }
+  dropdown.style.display = 'block';
+}
+
+function filterCategory(cat) {
+  document.getElementById('exercise-search').value = cat ? `cat:${cat}` : '';
+  searchExercises(cat ? `cat:${cat}` : '');
+  
+  document.querySelectorAll('.cat-btn').forEach(b => {
+    b.classList.remove('btn-primary');
+    if (b.dataset.cat === cat) b.classList.add('btn-primary');
+  });
+}
+
+function addExercise(exId, exName, setType) {
+  // Check not already added
+  if (exercises.find(e => e.exercise_id === exId)) {
+    showToast(`${exName} already in this workout`, 'warning');
+    document.getElementById('exercise-dropdown').style.display = 'none';
+    document.getElementById('exercise-search').value = '';
+    return;
+  }
+  exercises.push({
+    exercise_id: exId,
+    name:        exName,
+    set_type:    setType || 'reps_weight',
+    weId:        null,
+    sets:        [{ set_number: 1, weight_kg: null, reps: null, duration_seconds: null, is_warmup: false }],
+  });
+  document.getElementById('exercise-dropdown').style.display = 'none';
+  document.getElementById('exercise-search').value = '';
+  renderExercises();
+  updateSummary();
+  performAutoSave();
+}
+
+function removeExercise(idx) {
+  exercises.splice(idx, 1);
+  renderExercises();
+  updateSummary();
+  performAutoSave();
+}
+
+function addSet(exIdx) {
+  const ex = exercises[exIdx];
+  if (!ex) return;
+  const lastSet = ex.sets[ex.sets.length - 1] || {};
+  ex.sets.push({
+    set_number:       ex.sets.length + 1,
+    weight_kg:        lastSet.weight_kg,
+    reps:             lastSet.reps,
+    duration_seconds: lastSet.duration_seconds,
+    is_warmup:        false,
+  });
+  renderExercises();
+  updateSummary();
+  performAutoSave();
+}
+
+function removeSet(exIdx, setIdx) {
+  exercises[exIdx].sets.splice(setIdx, 1);
+  exercises[exIdx].sets.forEach((s, i) => s.set_number = i + 1);
+  renderExercises();
+  updateSummary();
+  performAutoSave();
+}
+
+function updateSetField(exIdx, setIdx, field, value) {
+  const set = exercises[exIdx]?.sets[setIdx];
+  if (!set) return;
+  set[field] = value === '' ? null : (field === 'is_warmup' ? value : parseFloat(value) || null);
+  updateSummary();
+  performAutoSave();
+}
+
+// ── Render ────────────────────────────────────────────────────
+
+function renderExercises() {
+  const container = document.getElementById('exercises-container');
+  if (!exercises.length) {
+    container.innerHTML = `<div class="empty-state mb-xl"><div class="empty-icon">💪</div><p>Search and add exercises above to start your workout.</p></div>`;
+    return;
+  }
+  container.innerHTML = exercises.map((ex, exIdx) => renderExerciseBlock(ex, exIdx)).join('');
+}
+
+function renderExerciseBlock(ex, exIdx) {
+  const isRW   = ex.set_type === 'reps_weight';
+  const isRO   = ex.set_type === 'reps_only';
+  const isTime = ex.set_type === 'time_only';
+  const isTW   = ex.set_type === 'time_weight';
+
+  const setRows = ex.sets.map((s, sIdx) => `
+    <div class="set-row ${s.is_warmup ? 'set-warmup' : ''}">
+      <div class="set-num">${s.is_warmup ? 'W' : s.set_number}</div>
+      ${(isRW || isTW) ? `
+        <input type="number" class="set-input weight-input" placeholder="kg" step="0.5" min="0"
+               value="${s.weight_kg != null ? s.weight_kg : ''}"
+               onchange="updateSetField(${exIdx},${sIdx},'weight_kg',this.value)"
+               oninput="updateSetField(${exIdx},${sIdx},'weight_kg',this.value)">
+      ` : ''}
+      ${(isRW || isRO) ? `
+        <input type="number" class="set-input reps-input" placeholder="reps" min="1" max="999"
+               value="${s.reps != null ? s.reps : ''}"
+               onchange="updateSetField(${exIdx},${sIdx},'reps',this.value)"
+               oninput="updateSetField(${exIdx},${sIdx},'reps',this.value)">
+      ` : ''}
+      ${(isTime || isTW) ? `
+        <input type="number" class="set-input time-input" placeholder="sec" min="1"
+               value="${s.duration_seconds != null ? s.duration_seconds : ''}"
+               onchange="updateSetField(${exIdx},${sIdx},'duration_seconds',this.value)"
+               oninput="updateSetField(${exIdx},${sIdx},'duration_seconds',this.value)">
+      ` : ''}
+      <input type="number" class="set-input rpe-input" placeholder="RPE" min="1" max="10" step="0.5"
+             value="${s.rpe != null ? s.rpe : ''}"
+             onchange="updateSetField(${exIdx},${sIdx},'rpe',this.value)"
+             oninput="updateSetField(${exIdx},${sIdx},'rpe',this.value)">
+       <label class="warmup-toggle" title="Warmup set">
+         <input type="checkbox" ${s.is_warmup ? 'checked' : ''} onchange="updateSetField(${exIdx},${sIdx},'is_warmup',this.checked)">
+         <span>W</span>
+       </label>
+      <button class="set-remove" onclick="removeSet(${exIdx},${sIdx})" title="Remove set">✕</button>
+    </div>
+  `).join('');
+
+  return `
+    <div class="exercise-block" id="ex-block-${exIdx}">
+      <div class="exercise-block-header">
+        <div class="exercise-block-icon">${categoryIcon(allExercises.find(e=>e.id===ex.exercise_id)?.category||'')}</div>
+        <div class="exercise-block-name">${escHtml(ex.name)}</div>
+        <button class="btn btn-ghost btn-sm" onclick="removeExercise(${exIdx})" style="color:var(--text-xmuted);margin-left:auto">✕</button>
+      </div>
+
+      <div class="sets-table">
+        <div class="sets-table-header">
+          <div class="set-num-header">Set</div>
+          ${(isRW || isTW) ? '<div class="set-header">Weight (kg)</div>' : ''}
+          ${(isRW || isRO) ? '<div class="set-header">Reps</div>' : ''}
+          ${(isTime || isTW) ? '<div class="set-header">Seconds</div>' : ''}
+          <div class="set-header">RPE</div>
+          <div class="set-header">W</div>
+          <div></div>
+        </div>
+        <div id="sets-${exIdx}">${setRows}</div>
+      </div>
+
+      <div class="exercise-block-footer">
+        <button class="btn btn-ghost btn-sm" onclick="addSet(${exIdx})">+ Add Set</button>
+        <div style="font-size:.75rem;color:var(--text-muted)" id="ex-vol-${exIdx}"></div>
+      </div>
+    </div>
+  `;
+}
+
+function updateSummary() {
+  let totalSets = 0, totalVol = 0;
+  for (const ex of exercises) {
+    for (const s of ex.sets) {
+      if (!s.is_warmup) totalSets++;
+      if (s.weight_kg && s.reps) totalVol += s.weight_kg * s.reps;
+    }
+  }
+  const exEl  = document.getElementById('sum-exercises');
+  const setEl = document.getElementById('sum-sets');
+  const volEl = document.getElementById('sum-volume');
+  if (exEl)  exEl.textContent  = exercises.length;
+  if (setEl) setEl.textContent = totalSets;
+  if (volEl) volEl.textContent = Math.round(totalVol);
+}
+
+// ── Finish Workout ────────────────────────────────────────────
+
+async function finishWorkout() {
+  if (!exercises.length) {
+    showToast('Add at least one exercise before finishing', 'warning');
+    return;
+  }
+
+  const finishBtn = document.getElementById('finish-btn');
+  if (finishBtn) { finishBtn.textContent = 'Saving...'; finishBtn.disabled = true; }
+
+  const name     = document.getElementById('workout-name')?.value?.trim() || 'Workout';
+  const date     = document.getElementById('workout-date')?.value || todayISO();
+  const notes    = document.getElementById('workout-notes')?.value?.trim() || '';
+  const duration = workoutStart ? Math.floor((Date.now() - workoutStart) / 60000) : 0;
+
+  try {
+    // Create or get workout
+    if (!workoutId) {
+      const created = await apiFetch('/api/workouts', {
+        method: 'POST',
+        body: { name, workout_date: date, notes, duration_minutes: duration, is_draft: 0 },
+      }, false);
+      if (created._error) throw new Error('Failed to create workout');
+      workoutId = created.id;
+    } else {
+      await apiFetch(`/api/workouts/${workoutId}`, {
+        method: 'PATCH',
+        body: { name, workout_date: date, notes, duration_minutes: duration,
+                finished_at: new Date().toISOString(), is_draft: 0 },
+      }, false);
+    }
+
+    // Save all exercises and sets
+    for (let i = 0; i < exercises.length; i++) {
+      const ex = exercises[i];
+      if (!ex.weId) {
+        const weRes = await apiFetch(`/api/workouts/${workoutId}/exercises`, {
+          method: 'POST',
+          body: { exercise_id: ex.exercise_id, position: i },
+        }, false);
+        if (!weRes._error) ex.weId = weRes.id;
+      }
+      if (!ex.weId) continue;
+
+      for (const s of ex.sets) {
+        if (s.id) continue; // already saved (for resumed workouts)
+        await apiFetch(`/api/workouts/exercises/${ex.weId}/sets`, {
+          method: 'POST',
+          body: {
+            set_number:       s.set_number,
+            weight_kg:        s.weight_kg,
+            reps:             s.reps,
+            duration_seconds: s.duration_seconds,
+            is_warmup:        s.is_warmup ? 1 : 0,
+            rpe:              s.rpe,
+          },
+        }, false);
+      }
+    }
+
+    // Finish the workout and compute metrics
+    const finalRes = await apiFetch(`/api/workouts/${workoutId}/finish`, {
+      method: 'POST',
+      body: { 
+        duration_minutes: duration,
+        notes: notes 
+      },
+    }, false);
+
+    if (finalRes._error) throw new Error('Failed to finalize workout');
+
+    // Compute PRs
+    await apiFetch('/api/athletes/prs/compute', { method:'POST' }, false);
+
+    // Clear draft
+    clearDraft('active_workout');
+    clearInterval(timerInterval);
+    clearInterval(autoSaveInterval);
+
+    showToast('Workout saved! Great session! 💪', 'success');
+    setTimeout(() => { window.location.href = `/workout-detail.html?id=${workoutId}`; }, 800);
+
+  } catch (err) {
+    if (finishBtn) { finishBtn.textContent = '✓ Finish'; finishBtn.disabled = false; }
+    showToast('Failed to save workout. Try again.', 'error');
+  }
+}
+
+// ── Discard ───────────────────────────────────────────────────
+
+function showDiscardConfirm() {
+  openModal('discard-modal');
+}
+
+function discardWorkout() {
+  clearDraft('active_workout');
+  clearInterval(timerInterval);
+  clearInterval(autoSaveInterval);
+  window.location.href = '/dashboard.html';
+}
+
+// ── Close dropdown on outside click ──────────────────────────
+
+document.addEventListener('click', e => {
+  const dd = document.getElementById('exercise-dropdown');
+  const search = document.getElementById('exercise-search');
+  if (dd && search && !search.contains(e.target) && !dd.contains(e.target)) {
+    dd.style.display = 'none';
+  }
+});

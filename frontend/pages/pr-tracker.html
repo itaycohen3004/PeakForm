@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+  <title>PR Tracker — PeakForm</title>
+  <meta name="description" content="PeakForm Personal Records tracker — see your best lifts with estimated 1RM.">
+  <link rel="icon" href="/static/assets/logo.png">
+  <link rel="stylesheet" href="/static/css/main.css">
+  <link rel="stylesheet" href="/static/css/components.css">
+</head>
+<body class="app-layout">
+  <button class="mobile-menu-btn" id="mobile-menu-btn">☰</button>
+  <div class="sidebar-overlay" id="sidebar-overlay"></div>
+  <aside class="sidebar" id="sidebar"></aside>
+
+  <main class="main-content">
+    <div class="page-header flex-between mb-xl">
+      <div>
+        <h1>🏅 PR Tracker</h1>
+        <p>Your best lifts and personal records.</p>
+      </div>
+      <button class="btn btn-primary btn-sm" onclick="recomputePRs()" id="compute-btn">🔄 Recompute PRs</button>
+    </div>
+
+    <!-- Search -->
+    <div class="card mb-xl" style="padding:var(--space-md)">
+      <input type="text" id="search-prs" class="form-control" placeholder="🔍 Search exercises... (e.g. Bench Press, Squat)" oninput="filterPRs(this.value)">
+    </div>
+
+    <!-- Category filter -->
+    <div class="mb-xl" style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn btn-sm btn-ghost cat-filter active" data-cat="">All</button>
+      <button class="btn btn-sm btn-ghost cat-filter" data-cat="chest">Chest</button>
+      <button class="btn btn-sm btn-ghost cat-filter" data-cat="back">Back</button>
+      <button class="btn btn-sm btn-ghost cat-filter" data-cat="shoulders">Shoulders</button>
+      <button class="btn btn-sm btn-ghost cat-filter" data-cat="arms">Arms</button>
+      <button class="btn btn-sm btn-ghost cat-filter" data-cat="legs">Legs</button>
+      <button class="btn btn-sm btn-ghost cat-filter" data-cat="core">Core</button>
+    </div>
+
+    <div id="prs-grid" class="prs-grid">
+      <div class="skeleton skeleton-block"></div>
+    </div>
+  </main>
+
+  <div id="toast-container" class="toast-container"></div>
+  <script src="/static/js/utils.js"></script>
+  <script src="/static/js/api.js"></script>
+  <script>
+    let allPRs = [];
+    let activeCat = '';
+
+    onReady(async () => {
+      requireAuth();
+      await renderSidebar();
+      initMobileSidebar();
+      await loadPRs();
+    });
+
+    async function loadPRs() {
+      const data = await apiFetch('/api/athletes/prs');
+      if (data._error) return;
+      allPRs = data;
+      renderPRs(allPRs);
+    }
+
+    function filterPRs(query) {
+      const q = query.toLowerCase();
+      const filtered = allPRs.filter(pr =>
+        (!activeCat || pr.category === activeCat) &&
+        (pr.exercise_name || '').toLowerCase().includes(q)
+      );
+      renderPRs(filtered);
+    }
+
+    document.querySelectorAll('.cat-filter').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.cat-filter').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        activeCat = btn.dataset.cat;
+        filterPRs(document.getElementById('search-prs').value);
+      });
+    });
+
+    function renderPRs(prs) {
+      const grid = document.getElementById('prs-grid');
+      if (!prs.length) {
+        grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1">
+          <div class="empty-icon">🏅</div>
+          <h3>No PRs found</h3>
+          <p>Log workouts to automatically track your personal records.</p>
+          <a href="/log-workout.html" class="btn btn-primary mt-md">Log a Workout</a>
+        </div>`;
+        return;
+      }
+
+      // Group by category
+      const byCategory = {};
+      for (const pr of prs) {
+        const cat = pr.category || 'other';
+        if (!byCategory[cat]) byCategory[cat] = [];
+        byCategory[cat].push(pr);
+      }
+
+      let html = '';
+      const catOrder = ['chest','back','shoulders','arms','legs','core','full_body','skill','other'];
+      for (const cat of catOrder) {
+        if (!byCategory[cat]) continue;
+        html += `<div class="pr-category-header">
+          ${categoryIcon(cat)} <span style="text-transform:capitalize">${cat.replace('_',' ')}</span>
+        </div>`;
+        for (const pr of byCategory[cat]) {
+          html += `
+            <div class="pr-card">
+              <div class="pr-exercise">${escHtml(pr.exercise_name)}</div>
+              <div class="pr-stats">
+                <div class="pr-stat-block">
+                  <div class="pr-stat-val">${pr.weight_kg ? pr.weight_kg + ' kg' : '—'}</div>
+                  <div class="pr-stat-label">Best Weight</div>
+                </div>
+                <div class="pr-stat-block">
+                  <div class="pr-stat-val">${pr.reps || '—'}</div>
+                  <div class="pr-stat-label">Reps</div>
+                </div>
+                <div class="pr-stat-block gold">
+                  <div class="pr-stat-val">${pr.estimated_1rm ? pr.estimated_1rm + ' kg' : '—'}</div>
+                  <div class="pr-stat-label">Est. 1RM</div>
+                </div>
+              </div>
+              <div class="pr-date">📅 ${formatDate(pr.achieved_at)}</div>
+              <a href="/progress.html?exercise=${pr.exercise_id}" class="btn btn-ghost btn-sm w-full mt-md">View Progress →</a>
+            </div>
+          `;
+        }
+      }
+      grid.innerHTML = html;
+    }
+
+    async function recomputePRs() {
+      const btn = document.getElementById('compute-btn');
+      btn.textContent = '⏳ Computing...'; btn.disabled = true;
+      const res = await apiFetch('/api/athletes/prs/compute', { method:'POST' });
+      btn.textContent = '🔄 Recompute PRs'; btn.disabled = false;
+      if (res._error) return;
+      showToast('PRs updated!', 'success');
+      await loadPRs();
+    }
+  </script>
+  <style>
+    .prs-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: var(--space-md);
+    }
+    .pr-category-header {
+      grid-column: 1 / -1;
+      font-size: .75rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .1em;
+      color: var(--text-xmuted);
+      padding: var(--space-md) 0 var(--space-xs);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .pr-card {
+      background: var(--bg-card);
+      border: 1px solid var(--bg-border);
+      border-radius: var(--radius-lg);
+      padding: var(--space-lg);
+      transition: all var(--transition);
+    }
+    .pr-card:hover {
+      border-color: rgba(245,158,11,.3);
+      box-shadow: 0 4px 20px rgba(245,158,11,.1);
+      transform: translateY(-1px);
+    }
+    .pr-exercise { font-weight: 700; font-size: .95rem; margin-bottom: var(--space-md); }
+    .pr-stats { display: flex; gap: var(--space-md); margin-bottom: var(--space-sm); }
+    .pr-stat-block { flex: 1; text-align: center; }
+    .pr-stat-val { font-size: 1.2rem; font-weight: 900; color: var(--text-primary); }
+    .pr-stat-block.gold .pr-stat-val {
+      background: var(--gradient-amber);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .pr-stat-label { font-size: .68rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: .05em; }
+    .pr-date { font-size: .75rem; color: var(--text-muted); }
+    .cat-filter.active { background: rgba(139,92,246,.15); color: var(--violet-l); border-color: var(--violet-d); }
+  </style>
+</body>
+</html>

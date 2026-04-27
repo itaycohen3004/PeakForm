@@ -1,0 +1,87 @@
+"""
+Chat routes — group chat rooms.
+"""
+from flask import Blueprint, request, jsonify, g
+from backend.middleware.auth import require_auth
+from backend.models.chat import (
+    get_rooms, get_room, get_room_with_membership,
+    join_room, leave_room, get_messages, save_message,
+    delete_message, report_message,
+)
+
+chat_bp = Blueprint("chat", __name__, url_prefix="/api/chat")
+
+
+@chat_bp.route("/rooms", methods=["GET"])
+@require_auth
+def list_rooms():
+    rows = get_rooms()
+    rooms = []
+    for r in rows:
+        room = dict(r)
+        membership = get_room_with_membership(r["id"], g.user_id)
+        room["is_member"] = membership["is_member"]
+        room["display_name"] = membership["display_name"]
+        rooms.append(room)
+    return jsonify(rooms), 200
+
+
+@chat_bp.route("/rooms/<int:room_id>", methods=["GET"])
+@require_auth
+def room_detail(room_id):
+    room = get_room_with_membership(room_id, g.user_id)
+    if not room:
+        return jsonify({"error": "Room not found"}), 404
+    return jsonify(room), 200
+
+
+@chat_bp.route("/rooms/<int:room_id>/join", methods=["POST"])
+@require_auth
+def join(room_id):
+    data = request.get_json(silent=True) or {}
+    display_name = (data.get("display_name") or g.user_email.split("@")[0]).strip()
+    if len(display_name) < 2:
+        return jsonify({"error": "display_name must be at least 2 characters"}), 400
+    join_room(room_id, g.user_id, display_name)
+    return jsonify({"message": "Joined room.", "display_name": display_name}), 200
+
+
+@chat_bp.route("/rooms/<int:room_id>/leave", methods=["POST"])
+@require_auth
+def leave(room_id):
+    leave_room(room_id, g.user_id)
+    return jsonify({"message": "Left room."}), 200
+
+
+@chat_bp.route("/rooms/<int:room_id>/messages", methods=["GET"])
+@require_auth
+def messages(room_id):
+    limit = int(request.args.get("limit", 80))
+    rows  = get_messages(room_id, limit)
+    return jsonify(list(reversed([dict(r) for r in rows]))), 200
+
+
+@chat_bp.route("/rooms/<int:room_id>/messages", methods=["POST"])
+@require_auth
+def send_message(room_id):
+    data    = request.get_json(silent=True) or {}
+    message = (data.get("message") or "").strip()
+    display = data.get("display_name", g.user_email.split("@")[0])
+    if not message:
+        return jsonify({"error": "message required"}), 400
+    msg_id = save_message(room_id, g.user_id, display, message)
+    return jsonify({"id": msg_id, "message": "Message sent."}), 201
+
+
+@chat_bp.route("/messages/<int:msg_id>/report", methods=["POST"])
+@require_auth
+def report(msg_id):
+    report_message(msg_id)
+    return jsonify({"message": "Reported."}), 200
+
+
+@chat_bp.route("/messages/<int:msg_id>", methods=["DELETE"])
+@require_auth
+def delete(msg_id):
+    delete_message(msg_id)
+    return jsonify({"message": "Deleted."}), 200

@@ -1,0 +1,129 @@
+/*
+ * PeakForm — Community Chat CSS
+ */
+
+.chat-layout {
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - 120px);
+}
+
+.chat-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--space-md);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.chat-bubble-wrap {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-sm);
+  max-width: 70%;
+}
+
+.chat-bubble-wrap.own {
+  align-self: flex-end;
+  flex-direction: row-reverse;
+}
+
+.chat-avatar {
+  width: 32px; height: 32px;
+  border-radius: 50%;
+  background: var(--violet-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: white;
+  flex-shrink: 0;
+}
+
+.chat-avatar.teal { background: var(--accent-teal); }
+.chat-avatar.violet { background: var(--violet-primary); }
+
+.chat-bubble {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  border-bottom-left-radius: 4px;
+  padding: 10px 14px;
+  max-width: 100%;
+}
+
+.chat-bubble-wrap.own .chat-bubble {
+  background: rgba(139, 92, 246, 0.1);
+  border-color: rgba(139, 92, 246, 0.3);
+  border-bottom-left-radius: var(--radius-md);
+  border-bottom-right-radius: 4px;
+}
+
+.chat-nickname {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--violet-light);
+  margin-bottom: 3px;
+}
+
+.chat-bubble-wrap.own .chat-nickname { color: var(--accent-teal); }
+
+.chat-msg-text {
+  font-size: 0.9rem;
+  color: var(--text-primary);
+  line-height: 1.5;
+  word-break: break-word;
+}
+
+.chat-time {
+  font-size: 0.68rem;
+  color: var(--text-muted);
+  margin-top: 3px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+}
+
+/* Group list */
+.group-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-lg);
+  transition: all var(--transition);
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.group-card:hover {
+  border-color: var(--violet-primary);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 20px rgba(139, 92, 246, 0.2);
+}
+
+.group-icon {
+  width: 48px; height: 48px;
+  border-radius: var(--radius-md);
+  background: rgba(139, 92, 246, 0.1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5rem;
+  margin-bottom: var(--space-md);
+}
+
+.group-name {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 4px;
+}
+
+.group-desc {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  line-height: 1.4;
+}

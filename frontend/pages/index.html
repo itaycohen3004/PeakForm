@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1.0">
+  <title>PeakForm — Strength Training Tracker</title>
+  <meta name="description" content="PeakForm is the premium strength training tracker with AI coaching, progress analytics, goal tracking, and community motivation.">
+  <link rel="icon" href="/static/assets/logo.png">
+  <link rel="stylesheet" href="/static/css/main.css">
+  <link rel="stylesheet" href="/static/css/components.css">
+</head>
+<body class="landing">
+  <nav class="landing-nav">
+    <div class="landing-logo">🏔️ PeakForm</div>
+    <div style="display:flex;gap:12px;align-items:center">
+      <a href="/login.html" class="btn btn-ghost btn-sm">Sign In</a>
+      <a href="/register.html" class="btn btn-primary btn-sm">Get Started Free</a>
+    </div>
+  </nav>
+
+  <section class="hero">
+    <div class="hero-eyebrow">
+      <span>🏔️</span>
+      <span>AI-Powered Strength Coaching</span>
+    </div>
+    <h1>Train Smarter.<br>Reach Your <span>Peak Form</span>.</h1>
+    <p class="hero-subtitle">
+      The all-in-one strength training platform with workout logging, AI coaching,
+      progress analytics, PR tracking, and community motivation.
+    </p>
+    <div class="hero-actions">
+      <a href="/register.html" class="btn btn-primary btn-lg" id="hero-cta">Start Training Free</a>
+      <a href="/login.html" class="btn btn-outline btn-lg">Sign In</a>
+    </div>
+
+    <!-- Floating stats -->
+    <div class="hero-stats">
+      <div class="hero-stat">
+        <div class="hero-stat-value">120+</div>
+        <div class="hero-stat-label">Exercises</div>
+      </div>
+      <div class="hero-stat">
+        <div class="hero-stat-value">AI</div>
+        <div class="hero-stat-label">Coaching</div>
+      </div>
+      <div class="hero-stat">
+        <div class="hero-stat-value">∞</div>
+        <div class="hero-stat-label">Workouts</div>
+      </div>
+    </div>
+  </section>
+
+  <section class="features">
+    <div class="features-title">
+      <h2>Everything you need to <span style="background:var(--gradient-hero);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text">peak</span></h2>
+      <p>Built for serious athletes who want to track, analyze, and improve.</p>
+    </div>
+    <div class="features-grid">
+      <div class="feature-card">
+        <div class="feature-icon">💪</div>
+        <h3>Workout Logging</h3>
+        <p>Log workouts from templates or custom sessions. Auto-save never loses your data. Optimized for gym use.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">📋</div>
+        <h3>Smart Templates</h3>
+        <p>Create Push/Pull/Legs or any split. Load instantly before every session. Schedule weekly.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">📈</div>
+        <h3>Progress Analytics</h3>
+        <p>Volume charts, progression graphs, frequency analysis. See exactly how you're improving over time.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">🏅</div>
+        <h3>PR Tracker</h3>
+        <p>Automatic personal record detection. Track your best lifts with estimated 1RM calculation.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">🤖</div>
+        <h3>AI Coach</h3>
+        <p>Powered by Google Gemini. Get personalized recommendations, deload suggestions, and workout plans.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">🏆</div>
+        <h3>Goals & Achievements</h3>
+        <p>Set strength targets, body weight goals, and volume milestones. Celebrate with shareable achievement cards.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">⚖️</div>
+        <h3>Body Composition</h3>
+        <p>Log daily weight. Visualize changes. Color-coded based on your goal (gain or lose).</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">🔥</div>
+        <h3>Streak System</h3>
+        <p>Build training momentum. Track consecutive days, weekly consistency, and monthly totals.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">🌐</div>
+        <h3>Community Feed</h3>
+        <p>Share achievements, progress photos, and PRs. Like and comment to motivate fellow athletes.</p>
+      </div>
+    </div>
+  </section>
+
+  <section style="padding:var(--space-2xl);text-align:center;background:rgba(139,92,246,0.05);border-top:1px solid var(--bg-border);border-bottom:1px solid var(--bg-border)">
+    <div style="max-width:600px;margin:0 auto">
+      <h2 style="font-size:2rem;font-weight:900;margin-bottom:var(--space-md)">Ready to reach your <span style="background:var(--gradient-hero);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text">peak?</span></h2>
+      <p style="color:var(--text-muted);margin-bottom:var(--space-xl)">Join PeakForm and start tracking your strength journey today. Free forever.</p>
+      <a href="/register.html" class="btn btn-primary btn-lg" style="font-size:1.05rem;padding:14px 36px">Create Free Account →</a>
+      <div style="margin-top:var(--space-lg);font-size:.8rem;color:var(--text-xmuted)">
+        Demo: <strong>admin@peakform.app</strong> / <strong>Admin@1234</strong>
+      </div>
+    </div>
+  </section>
+
+  <footer class="landing-footer">
+    <p>🏔️ PeakForm — Train smarter, reach your peak.</p>
+    <p style="margin-top:4px;font-size:.75rem;color:var(--text-xmuted)">Built with Python · Flask · SQLite · Google Gemini AI</p>
+  </footer>
+
+  <script src="/static/js/utils.js"></script>
+  <script src="/static/js/api.js"></script>
+  <script>
+    // Migrate old reprise tokens
+    const oldToken = localStorage.getItem('rp_token');
+    const oldUser  = localStorage.getItem('rp_user');
+    if (oldToken && !localStorage.getItem('pf_token')) {
+      localStorage.setItem('pf_token', oldToken);
+      if (oldUser) localStorage.setItem('pf_user', oldUser);
+    }
+    if (isLoggedIn()) window.location.href = '/dashboard.html';
+  </script>
+
+  <style>
+    .hero-stats {
+      display: flex;
+      gap: var(--space-2xl);
+      margin-top: var(--space-2xl);
+      padding: var(--space-xl) var(--space-2xl);
+      background: rgba(139,92,246,0.06);
+      border: 1px solid rgba(139,92,246,0.15);
+      border-radius: var(--radius-xl);
+    }
+    .hero-stat { text-align: center; }
+    .hero-stat-value { font-size: 1.8rem; font-weight: 900; background: var(--gradient-hero); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+    .hero-stat-label { font-size: .75rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: .05em; }
+    @media (max-width: 600px) {
+      .hero-stats { gap: var(--space-lg); padding: var(--space-lg); }
+    }
+  </style>
+</body>
+</html>

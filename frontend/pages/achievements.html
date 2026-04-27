@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+  <title>Goals & Achievements — PeakForm</title>
+  <meta name="description" content="Track your strength training goals and celebrate achievements on PeakForm.">
+  <link rel="icon" href="/static/assets/logo.png">
+  <link rel="stylesheet" href="/static/css/main.css">
+  <link rel="stylesheet" href="/static/css/components.css">
+</head>
+<body class="app-layout">
+  <button class="mobile-menu-btn" id="mobile-menu-btn">☰</button>
+  <div class="sidebar-overlay" id="sidebar-overlay"></div>
+  <aside class="sidebar" id="sidebar"></aside>
+
+  <main class="main-content">
+    <div class="page-header flex-between mb-xl">
+      <div>
+        <h1>🏆 Goals & Achievements</h1>
+        <p>Set targets, track progress, celebrate wins.</p>
+      </div>
+      <button class="btn btn-primary" onclick="openModal('goal-modal')">+ New Goal</button>
+    </div>
+
+    <!-- Tabs -->
+    <div class="tabs mb-xl">
+      <button class="tab-btn active" onclick="switchTab('active')">Active Goals</button>
+      <button class="tab-btn" onclick="switchTab('completed')">Achievements</button>
+    </div>
+
+    <!-- Active Goals -->
+    <div id="tab-active">
+      <div id="goals-grid"><div class="skeleton skeleton-block"></div></div>
+    </div>
+
+    <!-- Completed -->
+    <div id="tab-completed" style="display:none">
+      <div id="achievements-grid"><div class="skeleton skeleton-block"></div></div>
+    </div>
+  </main>
+
+  <!-- New Goal Modal -->
+  <div id="goal-modal" class="modal" style="display:none" onclick="if(event.target===this)closeModal('goal-modal')">
+    <div class="modal-box" style="max-width:520px">
+      <div class="modal-header">
+        <span class="modal-title">🎯 New Goal</span>
+        <button class="modal-close" onclick="closeModal('goal-modal')">✕</button>
+      </div>
+      <form id="goal-form" onsubmit="createGoal(event)">
+        <div class="form-group mb-md">
+          <label class="form-label">Goal Type</label>
+          <select id="goal-type" class="form-control" onchange="onGoalTypeChange(this.value)">
+            <option value="exercise_weight">🏋️ Reach target lift weight</option>
+            <option value="exercise_reps">🔁 Reach target reps</option>
+            <option value="exercise_1rm">💪 Reach target 1RM</option>
+            <option value="body_weight_target">⚖️ Reach target body weight</option>
+            <option value="workout_count">📊 Complete N workouts</option>
+            <option value="weekly_frequency">📅 Train N days/week</option>
+            <option value="volume_target">📈 Reach total volume (kg)</option>
+            <option value="streak_days">🔥 Achieve streak days</option>
+            <option value="custom">⭐ Custom goal</option>
+          </select>
+        </div>
+        <div class="form-group mb-md">
+          <label class="form-label">Goal Title</label>
+          <input type="text" id="goal-title" class="form-control" placeholder="e.g. Bench 100kg, 20 Pull-ups, Lose 5kg" required>
+        </div>
+        <div id="exercise-section" class="form-group mb-md" style="display:none">
+          <label class="form-label">Exercise</label>
+          <div class="exercise-search-wrap">
+            <input type="text" id="goal-exercise-search" class="form-control" placeholder="Search exercise..." oninput="searchGoalExercise(this.value)" autocomplete="off">
+            <div class="exercise-dropdown" id="goal-exercise-dropdown"></div>
+          </div>
+          <input type="hidden" id="goal-exercise-id">
+        </div>
+        <div class="form-row mb-md">
+          <div class="form-group">
+            <label class="form-label">Starting Value</label>
+            <input type="number" id="goal-start" class="form-control" placeholder="0" step="0.1" value="0">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Target Value <span id="unit-hint" style="color:var(--text-xmuted)"></span></label>
+            <input type="number" id="goal-target" class="form-control" placeholder="e.g. 100" step="0.1" required>
+          </div>
+        </div>
+        <div class="form-group mb-md">
+          <label class="form-label">Unit</label>
+          <input type="text" id="goal-unit" class="form-control" placeholder="e.g. kg, reps, workouts, days" value="kg">
+        </div>
+        <div class="form-group mb-xl">
+          <label class="form-label">Deadline (optional)</label>
+          <input type="date" id="goal-deadline" class="form-control">
+        </div>
+        <div style="display:flex;gap:12px">
+          <button type="button" class="btn btn-ghost btn-full" onclick="closeModal('goal-modal')">Cancel</button>
+          <button type="submit" class="btn btn-primary btn-full" id="create-goal-btn">Create Goal</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div id="toast-container" class="toast-container"></div>
+  <script src="/static/js/utils.js"></script>
+  <script src="/static/js/api.js"></script>
+  <script>
+    let allGoals = [];
+    let allExercises = [];
+    let currentTab = 'active';
+
+    onReady(async () => {
+      requireAuth();
+      await renderSidebar();
+      initMobileSidebar();
+      await loadGoals();
+      loadExercises();
+    });
+
+    async function loadGoals() {
+      const data = await apiFetch('/api/goals?include_completed=true');
+      if (data._error) return;
+      allGoals = data;
+      renderTab(currentTab);
+    }
+
+    async function loadExercises() {
+      const data = await apiFetch('/api/exercises', {}, false);
+      if (!data._error) allExercises = data;
+    }
+
+    function switchTab(tab) {
+      currentTab = tab;
+      document.querySelectorAll('.tab-btn').forEach((b, i) => {
+        b.classList.toggle('active', (i === 0 && tab === 'active') || (i === 1 && tab === 'completed'));
+      });
+      document.getElementById('tab-active').style.display    = tab === 'active' ? 'block' : 'none';
+      document.getElementById('tab-completed').style.display = tab === 'completed' ? 'block' : 'none';
+      renderTab(tab);
+    }
+
+    function renderTab(tab) {
+      if (tab === 'active') renderActiveGoals();
+      else renderAchievements();
+    }
+
+    function renderActiveGoals() {
+      const grid = document.getElementById('goals-grid');
+      const active = allGoals.filter(g => !g.is_completed);
+      if (!active.length) {
+        grid.innerHTML = `<div class="empty-state">
+          <div class="empty-icon">🎯</div>
+          <h3>No active goals</h3>
+          <p>Set your first goal to start tracking your progress.</p>
+          <button class="btn btn-primary mt-md" onclick="openModal('goal-modal')">+ Create Goal</button>
+        </div>`;
+        return;
+      }
+      grid.innerHTML = `<div class="goals-grid">${active.map(g => renderGoalCard(g)).join('')}</div>`;
+    }
+
+    function renderAchievements() {
+      const grid = document.getElementById('achievements-grid');
+      const done = allGoals.filter(g => g.is_completed);
+      if (!done.length) {
+        grid.innerHTML = `<div class="empty-state">
+          <div class="empty-icon">🏆</div>
+          <h3>No achievements yet</h3>
+          <p>Complete your goals to unlock achievements!</p>
+        </div>`;
+        return;
+      }
+      grid.innerHTML = `<div class="achievements-grid-inner">${done.map(g => renderAchievementCard(g)).join('')}</div>`;
+    }
+
+    function renderGoalCard(g) {
+      const pct = Math.min(100, Math.round(((g.current_value - (g.starting_value||0)) / Math.max(g.target_value - (g.starting_value||0), 0.01)) * 100));
+      const remaining = Math.max(0, g.target_value - g.current_value);
+      const isDue = g.deadline && new Date(g.deadline) < new Date();
+      return `
+        <div class="goal-card-full">
+          <div class="goal-card-header">
+            <div>
+              <div class="goal-type-label">${goalTypeBadge(g.goal_type)}</div>
+              <div class="goal-title">${escHtml(g.title)}</div>
+              ${g.exercise_name ? `<div class="goal-exercise">${escHtml(g.exercise_name)}</div>` : ''}
+            </div>
+            <div style="display:flex;gap:6px;flex-shrink:0">
+              <button class="btn btn-ghost btn-sm" onclick="editProgress(${g.id}, ${g.current_value})" title="Update progress">✏️</button>
+              <button class="btn btn-ghost btn-sm" onclick="deleteGoal(${g.id})" title="Delete goal" style="color:var(--text-xmuted)">🗑</button>
+            </div>
+          </div>
+          <div class="goal-progress">
+            <div class="flex-between mb-sm">
+              <span class="font-sm text-muted">${g.current_value} / ${g.target_value} ${g.unit||''}</span>
+              <span style="font-size:.8rem;font-weight:800;color:${pct>=100?'var(--green-l)':'var(--violet-l)'}">${pct}%</span>
+            </div>
+            <div class="progress-wrap">
+              <div class="progress-bar ${pct>=100?'green':''}" style="width:${pct}%"></div>
+            </div>
+            <div style="font-size:.75rem;color:var(--text-muted);margin-top:6px;display:flex;gap:12px">
+              <span>${remaining.toFixed(1)} ${g.unit||''} remaining</span>
+              ${g.deadline ? `<span style="color:${isDue?'var(--red)':'var(--text-muted)'}">📅 ${formatDate(g.deadline)}${isDue?' (overdue)':''}</span>` : ''}
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderAchievementCard(g) {
+      return `
+        <div class="achievement-card" onclick="launchConfetti(2000)">
+          <div class="achievement-icon">🏆</div>
+          <div class="achievement-content">
+            <div class="achievement-title">${escHtml(g.title)}</div>
+            <div class="achievement-meta">
+              ${goalTypeBadge(g.goal_type)}
+              <span class="text-muted font-xs">Achieved ${formatDate(g.completed_at)}</span>
+            </div>
+            <div class="achievement-value">${g.target_value} ${g.unit||''}</div>
+            ${g.photo_path ? `<img src="${g.photo_path}" style="width:100%;border-radius:8px;margin-top:8px;object-fit:cover;max-height:160px">` : ''}
+          </div>
+          <div style="display:flex;gap:6px;margin-top:var(--space-md);flex-wrap:wrap">
+            <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();uploadPhoto(${g.id})">📷 Photo</button>
+            <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();shareAchievement(${g.id},'${escHtml(g.title)}')">📤 Share</button>
+          </div>
+        </div>
+      `;
+    }
+
+    async function createGoal(e) {
+      e.preventDefault();
+      const btn = document.getElementById('create-goal-btn');
+      btn.textContent = 'Creating...'; btn.disabled = true;
+
+      const goalType  = document.getElementById('goal-type').value;
+      const exerciseId = document.getElementById('goal-exercise-id').value;
+
+      const payload = {
+        goal_type:     goalType,
+        title:         document.getElementById('goal-title').value.trim(),
+        starting_value: parseFloat(document.getElementById('goal-start').value)||0,
+        target_value:  parseFloat(document.getElementById('goal-target').value),
+        unit:          document.getElementById('goal-unit').value.trim(),
+        deadline:      document.getElementById('goal-deadline').value || null,
+        exercise_id:   exerciseId ? parseInt(exerciseId) : null,
+      };
+      payload.current_value = payload.starting_value;
+
+      const res = await apiFetch('/api/goals', { method:'POST', body: payload });
+      btn.textContent = 'Create Goal'; btn.disabled = false;
+      if (res._error) return;
+
+      showToast('Goal created! 🎯', 'success');
+      closeModal('goal-modal');
+      document.getElementById('goal-form').reset();
+      await loadGoals();
+    }
+
+    async function deleteGoal(id) {
+      if (!confirm('Delete this goal?')) return;
+      const res = await apiFetch(`/api/goals/${id}`, { method:'DELETE' });
+      if (res._error) return;
+      showToast('Goal deleted', 'info');
+      await loadGoals();
+    }
+
+    async function editProgress(id, current) {
+      const val = prompt(`Update progress (current: ${current}):`, current);
+      if (val === null) return;
+      const num = parseFloat(val);
+      if (isNaN(num)) { showToast('Invalid value', 'error'); return; }
+      const res = await apiFetch(`/api/goals/${id}/progress`, {
+        method: 'PATCH',
+        body: { current_value: num },
+      });
+      if (res._error) return;
+      if (res.is_completed) {
+        launchConfetti(3000);
+        showToast('🏆 Goal completed! Achievement unlocked!', 'success');
+      } else {
+        showToast('Progress updated!', 'success');
+      }
+      await loadGoals();
+    }
+
+    // Goal type change handler
+    function onGoalTypeChange(type) {
+      const exSection = document.getElementById('exercise-section');
+      const unitHint  = document.getElementById('goal-unit');
+      const isExercise = ['exercise_weight','exercise_reps','exercise_1rm'].includes(type);
+      exSection.style.display = isExercise ? 'block' : 'none';
+      const units = {
+        exercise_weight: 'kg', exercise_reps: 'reps', exercise_1rm: 'kg',
+        body_weight_target: 'kg', workout_count: 'workouts',
+        weekly_frequency: 'days/week', volume_target: 'kg',
+        streak_days: 'days', custom: '',
+      };
+      unitHint.value = units[type] || 'kg';
+    }
+
+    // Exercise search for goal form
+    let allEx = [];
+    async function searchGoalExercise(query) {
+      if (!allEx.length) {
+        const d = await apiFetch('/api/exercises', {}, false);
+        if (!d._error) allEx = d;
+      }
+      const dd = document.getElementById('goal-exercise-dropdown');
+      const q = query.toLowerCase();
+      const matches = allEx.filter(e => e.name.toLowerCase().includes(q)).slice(0, 8);
+      if (!matches.length) { dd.style.display = 'none'; return; }
+      dd.innerHTML = matches.map(e => `
+        <div class="exercise-option" onclick="selectGoalExercise(${e.id}, '${escHtml(e.name).replace(/'/g,"\\'")}')">
+          ${e.name}
+        </div>
+      `).join('');
+      dd.style.display = 'block';
+    }
+
+    function selectGoalExercise(id, name) {
+      document.getElementById('goal-exercise-id').value = id;
+      document.getElementById('goal-exercise-search').value = name;
+      document.getElementById('goal-exercise-dropdown').style.display = 'none';
+      if (!document.getElementById('goal-title').value) {
+        document.getElementById('goal-title').value = name;
+      }
+    }
+
+    function uploadPhoto(goalId) {
+      const input = document.createElement('input');
+      input.type = 'file'; input.accept = 'image/*';
+      input.onchange = async () => {
+        const file = input.files[0];
+        if (!file) return;
+        const fd = new FormData();
+        fd.append('photo', file);
+        const res = await apiUpload(`/api/goals/${goalId}/photo`, fd);
+        if (!res._error) { showToast('Photo uploaded! 📸', 'success'); await loadGoals(); }
+      };
+      input.click();
+    }
+
+    function shareAchievement(id, title) {
+      showToast(`Share card for "${title}" — coming soon`, 'info');
+    }
+  </script>
+  <style>
+    .goals-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+      gap: var(--space-md);
+    }
+    .goal-card-full {
+      background: var(--bg-card);
+      border: 1px solid var(--bg-border);
+      border-radius: var(--radius-lg);
+      padding: var(--space-lg);
+      transition: all var(--transition);
+    }
+    .goal-card-full:hover { border-color: rgba(139,92,246,.3); }
+    .goal-card-header { display:flex; align-items:flex-start; justify-content:space-between; gap:8px; margin-bottom:var(--space-md); }
+    .goal-type-label { margin-bottom:4px; }
+    .goal-title { font-weight:800; font-size:.95rem; }
+    .goal-exercise { font-size:.8rem; color:var(--text-muted); }
+    .goal-progress { }
+
+    .achievements-grid-inner {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: var(--space-md);
+    }
+    .achievement-card {
+      background: linear-gradient(145deg, rgba(245,158,11,.08), rgba(139,92,246,.06));
+      border: 1px solid rgba(245,158,11,.2);
+      border-radius: var(--radius-lg);
+      padding: var(--space-xl);
+      cursor: pointer;
+      transition: all var(--transition);
+    }
+    .achievement-card:hover {
+      border-color: rgba(245,158,11,.4);
+      box-shadow: 0 8px 32px rgba(245,158,11,.15);
+      transform: translateY(-2px);
+    }
+    .achievement-icon { font-size: 2.5rem; margin-bottom: var(--space-md); }
+    .achievement-title { font-weight: 800; font-size: 1.05rem; margin-bottom: 6px; }
+    .achievement-meta { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:8px; }
+    .achievement-value { font-size: 1.4rem; font-weight: 900; background: var(--gradient-amber); -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text; }
+  </style>
+</body>
+</html>

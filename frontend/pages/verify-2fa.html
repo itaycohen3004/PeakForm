@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+  <title>Verify 2FA — Reprise</title>
+  <link rel="icon" href="/static/assets/logo.png">
+  <link rel="stylesheet" href="/static/css/main.css">
+  <link rel="stylesheet" href="/static/css/components.css">
+</head>
+<body class="auth-page">
+  <div class="auth-card">
+    <div class="auth-logo"><div class="auth-logo-text">reprise</div></div>
+    <div class="auth-title">Verify your identity</div>
+    <div class="auth-subtitle">Enter the 6-digit code sent to your email</div>
+
+    <!-- Show code for demo (remove in production) -->
+    <div id="demo-code-box" style="background:rgba(16,185,129,.1);border:1px solid rgba(16,185,129,.3);border-radius:var(--radius-md);padding:var(--space-md);margin-bottom:var(--space-lg);text-align:center;display:none">
+      <div style="font-size:.72rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">Your 2FA Code (dev mode)</div>
+      <div id="demo-code-display" style="font-size:2rem;font-weight:900;color:var(--green);font-family:monospace;letter-spacing:.2em"></div>
+    </div>
+
+    <div class="digit-inputs mb-xl" id="digit-inputs">
+      <input class="digit-input" type="text" inputmode="numeric" maxlength="1" id="d0">
+      <input class="digit-input" type="text" inputmode="numeric" maxlength="1" id="d1">
+      <input class="digit-input" type="text" inputmode="numeric" maxlength="1" id="d2">
+      <input class="digit-input" type="text" inputmode="numeric" maxlength="1" id="d3">
+      <input class="digit-input" type="text" inputmode="numeric" maxlength="1" id="d4">
+      <input class="digit-input" type="text" inputmode="numeric" maxlength="1" id="d5">
+    </div>
+
+    <button class="btn btn-primary btn-full btn-lg" onclick="handleVerify()">Verify & Continue</button>
+    <div style="text-align:center;margin-top:var(--space-lg)">
+      <a href="/login.html" style="color:var(--text-muted);font-size:.82rem">← Back to Sign In</a>
+    </div>
+  </div>
+
+  <div id="toast-container" class="toast-container"></div>
+  <script src="/static/js/utils.js"></script>
+  <script src="/static/js/api.js"></script>
+  <script>
+    const userId = sessionStorage.getItem('rp_temp_uid');
+    const devCode = sessionStorage.getItem('rp_temp_code');
+
+    if (!userId) window.location.href = '/login.html';
+
+    if (devCode) {
+      document.getElementById('demo-code-box').style.display = 'block';
+      document.getElementById('demo-code-display').textContent = devCode;
+      // Auto-fill digits
+      [...devCode].forEach((c,i) => {
+        const el = document.getElementById(`d${i}`);
+        if (el) el.value = c;
+      });
+    }
+
+    // Auto-advance digit inputs
+    document.querySelectorAll('.digit-input').forEach((inp, idx, all) => {
+      inp.addEventListener('input', e => {
+        const v = e.target.value.replace(/\D/g,'');
+        e.target.value = v.slice(0,1);
+        if (v && idx < all.length - 1) all[idx+1].focus();
+        if (document.querySelectorAll('.digit-input:not([value=""])').length === 6 ||
+            [...all].every(i=>i.value)) handleVerify();
+      });
+      inp.addEventListener('keydown', e => {
+        if (e.key === 'Backspace' && !inp.value && idx > 0) all[idx-1].focus();
+      });
+    });
+
+    document.getElementById('d0').focus();
+
+    async function handleVerify() {
+      const code = [...document.querySelectorAll('.digit-input')].map(i=>i.value).join('');
+      if (code.length !== 6) { showToast('Enter all 6 digits', 'warning'); return; }
+      const res = await apiFetch('/api/auth/verify-2fa', { method:'POST', body:{ user_id: parseInt(userId), code } });
+      if (res._error) {
+        document.querySelectorAll('.digit-input').forEach(i=>i.value='');
+        document.getElementById('d0').focus();
+        return;
+      }
+      // Fetch athlete profile to get display_name
+      const profile = await apiFetch('/api/athletes/profile', {}, false);
+      saveAuth(res.token, {
+        user_id: res.user_id,
+        email:   res.email,
+        role:    res.role,
+        display_name: profile?.display_name || res.email,
+        training_type: profile?.training_type || 'gym',
+      });
+      sessionStorage.removeItem('rp_temp_uid');
+      sessionStorage.removeItem('rp_temp_code');
+      window.location.href = '/dashboard.html';
+    }
+  </script>
+</body>
+</html>

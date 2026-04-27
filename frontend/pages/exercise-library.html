@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+  <title>Exercise Library — Reprise</title>
+  <link rel="icon" href="/static/assets/logo.png">
+  <link rel="stylesheet" href="/static/css/main.css">
+  <link rel="stylesheet" href="/static/css/components.css">
+  <link rel="stylesheet" href="/static/css/workout.css">
+</head>
+<body class="app-layout">
+  <button class="mobile-menu-btn" id="mobile-menu-btn">☰</button>
+  <div class="sidebar-overlay" id="sidebar-overlay"></div>
+  <aside class="sidebar" id="sidebar"></aside>
+
+  <main class="main-content">
+    <div class="page-header flex-between">
+      <div><h1>Exercise Library</h1><p>120+ exercises — search, filter, and view your PRs</p></div>
+      <button class="btn btn-primary" onclick="openModal('custom-modal')">+ Custom Exercise</button>
+    </div>
+
+    <div class="card mb-xl">
+      <div class="search-wrap mb-md">
+        <span class="search-icon">🔍</span>
+        <input type="text" id="search-input" class="form-control" placeholder="Search exercises..." oninput="loadExercises()">
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:8px" id="cat-pills">
+        <button class="btn btn-primary btn-sm" onclick="setCategory('',this)">All</button>
+        <button class="btn btn-ghost btn-sm" onclick="setCategory('chest',this)">Chest</button>
+        <button class="btn btn-ghost btn-sm" onclick="setCategory('back',this)">Back</button>
+        <button class="btn btn-ghost btn-sm" onclick="setCategory('shoulders',this)">Shoulders</button>
+        <button class="btn btn-ghost btn-sm" onclick="setCategory('arms',this)">Arms</button>
+        <button class="btn btn-ghost btn-sm" onclick="setCategory('legs',this)">Legs</button>
+        <button class="btn btn-ghost btn-sm" onclick="setCategory('core',this)">Core</button>
+        <button class="btn btn-ghost btn-sm" onclick="setCategory('skill',this)">Skills</button>
+        <button class="btn btn-ghost btn-sm" onclick="setCategory('full_body',this)">Full Body</button>
+      </div>
+    </div>
+
+    <div id="exercises-grid" class="grid-2"></div>
+  </main>
+
+  <!-- Custom exercise modal -->
+  <div class="modal-backdrop" id="custom-modal" style="display:none" onclick="if(event.target===this)closeModal('custom-modal')">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 class="modal-title">Create Custom Exercise</h3>
+        <button class="modal-close" onclick="closeModal('custom-modal')">✕</button>
+      </div>
+      <form onsubmit="createCustom(event)">
+        <div class="form-group mb-md">
+          <label class="form-label">Exercise Name</label>
+          <input type="text" id="custom-name" class="form-control" placeholder="e.g. Cable Pullover" required>
+        </div>
+        <div class="form-row mb-md">
+          <div class="form-group">
+            <label class="form-label">Category</label>
+            <select id="custom-cat" class="form-control">
+              <option value="chest">Chest</option><option value="back">Back</option>
+              <option value="shoulders">Shoulders</option><option value="arms">Arms</option>
+              <option value="legs">Legs</option><option value="core">Core</option>
+              <option value="full_body">Full Body</option><option value="skill">Skill</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Set Type</label>
+            <select id="custom-stype" class="form-control">
+              <option value="reps_weight">Reps + Weight</option>
+              <option value="reps_only">Reps only</option>
+              <option value="time_only">Time only</option>
+              <option value="time_weight">Time + Weight</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-group mb-lg">
+          <label class="form-label">Muscles (comma separated)</label>
+          <input type="text" id="custom-muscles" class="form-control" placeholder="chest, triceps">
+        </div>
+        <button type="submit" class="btn btn-primary btn-full">Create Exercise</button>
+      </form>
+    </div>
+  </div>
+
+  <div id="toast-container" class="toast-container"></div>
+  <script src="/static/js/utils.js"></script>
+  <script src="/static/js/api.js"></script>
+  <script>
+    let currentCategory = '';
+
+    onReady(() => {
+      requireAuth(); renderSidebar(); initMobileSidebar();
+      loadExercises();
+    });
+
+    function setCategory(cat, btn) {
+      currentCategory = cat;
+      document.querySelectorAll('#cat-pills .btn').forEach(b => { b.className='btn btn-ghost btn-sm'; });
+      btn.className = 'btn btn-primary btn-sm';
+      loadExercises();
+    }
+
+    let _t;
+    async function loadExercises() {
+      clearTimeout(_t);
+      _t = setTimeout(async () => {
+        const q   = document.getElementById('search-input').value;
+        let url   = `/api/exercises?limit=80&q=${encodeURIComponent(q)}`;
+        if (currentCategory) url += `&category=${currentCategory}`;
+        const data = await apiFetch(url, {}, false);
+        if (data._error) return;
+        const grid = document.getElementById('exercises-grid');
+        if (!data.length) {
+          grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1"><div class="empty-icon">🔍</div><h3>No exercises found</h3><p>Try a different search or <button class="btn btn-ghost btn-sm" onclick="openModal('custom-modal')">create a custom one</button></p></div>`;
+          return;
+        }
+        grid.innerHTML = data.map(ex => `
+          <div class="card card-sm" style="cursor:pointer" onclick="window.location='/progress.html?exercise_id=${ex.id}'">
+            <div class="flex-between mb-sm">
+              <span style="font-size:1.3rem">${categoryIcon(ex.category)}</span>
+              ${setTypeBadge(ex.set_type)}
+            </div>
+            <div style="font-weight:700;font-size:.95rem;margin-bottom:4px">${ex.name}</div>
+            <div style="font-size:.75rem;color:var(--text-muted)">${ex.category.replace('_',' ')} · ${ex.muscles||''}</div>
+            ${ex.equipment ? `<div style="font-size:.7rem;color:var(--text-xmuted);margin-top:4px">🛠 ${ex.equipment}</div>` : ''}
+          </div>
+        `).join('');
+      }, 200);
+    }
+
+    async function createCustom(e) {
+      e.preventDefault();
+      const res = await apiFetch('/api/exercises/custom', {
+        method: 'POST',
+        body: {
+          name:     document.getElementById('custom-name').value.trim(),
+          category: document.getElementById('custom-cat').value,
+          set_type: document.getElementById('custom-stype').value,
+          muscles:  document.getElementById('custom-muscles').value.trim(),
+        }
+      });
+      if (!res._error) {
+        showToast('Custom exercise created!','success');
+        closeModal('custom-modal');
+        loadExercises();
+      }
+    }
+  </script>
+</body>
+</html>

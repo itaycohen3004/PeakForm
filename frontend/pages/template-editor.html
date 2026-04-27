@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <title>Edit Preset — Reprise</title>
+  <link rel="stylesheet" href="/static/css/main.css">
+  <link rel="stylesheet" href="/static/css/components.css">
+  <link rel="stylesheet" href="/static/css/workout.css">
+</head>
+<body class="app-layout">
+  <button class="mobile-menu-btn" id="mobile-menu-btn">☰</button>
+  <div class="sidebar-overlay" id="sidebar-overlay"></div>
+  <aside class="sidebar" id="sidebar"></aside>
+
+  <main class="main-content">
+    <div class="page-header flex-between">
+      <div>
+        <div style="font-size:.82rem;color:var(--text-muted);margin-bottom:4px"><a href="/templates.html">← Saved Workouts</a></div>
+        <h1 id="tpl-title">Loading...</h1>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-outline btn-sm" onclick="saveTemplate()">💾 Save</button>
+        <a id="start-btn" href="#" class="btn btn-primary btn-sm">▶ Start Workout</a>
+      </div>
+    </div>
+
+    <!-- Exercises -->
+    <div id="tpl-exercises"></div>
+
+    <!-- Add exercise -->
+    <div class="card" style="border-style:dashed;border-color:rgba(139,92,246,.3)">
+      <div class="exercise-search-wrap">
+        <input type="text" id="ex-search" class="form-control" placeholder="🔍 Search and add exercises..." oninput="searchEx(this.value)">
+        <div class="exercise-dropdown" id="ex-dropdown"></div>
+      </div>
+    </div>
+  </main>
+
+  <div id="toast-container" class="toast-container"></div>
+  <script src="/static/js/utils.js"></script>
+  <script src="/static/js/api.js"></script>
+  <script>
+    let TPL_ID, _t;
+
+    onReady(async () => {
+      requireAuth(); renderSidebar(); initMobileSidebar();
+      TPL_ID = new URLSearchParams(location.search).get('id');
+      if (!TPL_ID) { window.location.href='/templates.html'; return; }
+      document.getElementById('start-btn').href = `/log-workout.html?from_template=${TPL_ID}`;
+      await loadTemplate();
+      document.addEventListener('click', e => { if (!e.target.closest('.exercise-search-wrap')) document.getElementById('ex-dropdown').classList.remove('open'); });
+    });
+
+    async function loadTemplate() {
+      const data = await apiFetch(`/api/templates/${TPL_ID}`, {}, false);
+      if (data._error) return;
+      document.getElementById('tpl-title').textContent = data.name;
+      document.title = `${data.name} — Reprise`;
+      renderExercises(data.exercises || []);
+    }
+
+    function renderExercises(exercises) {
+      const c = document.getElementById('tpl-exercises');
+      if (!exercises.length) {
+        c.innerHTML = `<div class="empty-state mb-lg"><div class="empty-icon">📋</div><h3>No exercises in this preset</h3><p>Search above to add exercises</p></div>`;
+        return;
+      }
+      c.innerHTML = exercises.map((ex, i) => `
+        <div class="exercise-block mb-md">
+          <div class="exercise-block-header">
+            <span>${categoryIcon(ex.category||'')}</span>
+            <div class="exercise-block-name">${ex.exercise_name}</div>
+            <div class="exercise-block-meta">
+              ${setTypeBadge(ex.set_type)}
+              <span style="color:var(--text-muted);font-size:.82rem">${ex.sets?.length||0} sets</span>
+              <button class="btn btn-ghost btn-icon" onclick="removeExercise(${ex.id})">🗑</button>
+            </div>
+          </div>
+          <div style="padding:var(--space-md) var(--space-lg)">
+            <div style="font-size:.75rem;color:var(--text-muted);margin-bottom:8px">Default sets: ${ex.default_sets||3}</div>
+            ${(ex.sets||[]).map(s => `
+              <div style="display:flex;gap:8px;align-items:center;padding:6px 0;border-bottom:1px solid var(--bg-border);font-size:.85rem">
+                <span style="color:var(--text-muted);min-width:16px">S${s.set_number}</span>
+                ${s.target_weight !== null && s.target_weight !== undefined ? `<span><strong>${s.target_weight}kg</strong></span>` : ''}
+                ${s.target_reps   !== null && s.target_reps   !== undefined ? `<span>× <strong>${s.target_reps} reps</strong></span>` : ''}
+                ${s.target_seconds!== null && s.target_seconds!== undefined ? `<span><strong>${s.target_seconds}s</strong></span>` : ''}
+                ${s.rpe ? `<span class="badge badge-muted">RPE ${s.rpe}</span>` : ''}
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function searchEx(q) {
+      clearTimeout(_t);
+      _t = setTimeout(async () => {
+        const res = await apiFetch(`/api/exercises?q=${encodeURIComponent(q)}&limit=20`, {}, false);
+        const dd = document.getElementById('ex-dropdown');
+        if (!res?.length) { dd.classList.remove('open'); return; }
+        dd.innerHTML = res.map(ex => `
+          <div class="exercise-option" onclick="addExercise(${ex.id},'${ex.name.replace(/'/g,"\\'")}')">
+            <div><div class="exercise-option-name">${ex.name}</div><div class="exercise-option-meta">${ex.category} · ${ex.muscles||''}</div></div>
+            ${setTypeBadge(ex.set_type)}
+          </div>
+        `).join('');
+        dd.classList.add('open');
+      }, 200);
+    }
+
+    async function addExercise(exerciseId, name) {
+      document.getElementById('ex-dropdown').classList.remove('open');
+      document.getElementById('ex-search').value = '';
+      const res = await apiFetch(`/api/templates/${TPL_ID}/exercises`, {
+        method:'POST', body:{ exercise_id: exerciseId, default_sets:3 }
+      });
+      if (!res._error) { showToast(`${name} added!`,'success'); await loadTemplate(); }
+    }
+
+    async function removeExercise(teId) {
+      await apiFetch(`/api/templates/exercises/${teId}`, { method:'DELETE' });
+      await loadTemplate();
+    }
+
+    async function saveTemplate() {
+      const res = await apiFetch(`/api/templates/${TPL_ID}`, { method:'PATCH', body:{ name: document.getElementById('tpl-title').textContent } });
+      if (!res._error) showToast('Preset saved!','success');
+    }
+  </script>
+</body>
+</html>

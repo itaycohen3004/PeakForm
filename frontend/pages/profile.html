@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+  <title>Profile — Reprise</title>
+  <link rel="icon" href="/static/assets/logo.png">
+  <link rel="stylesheet" href="/static/css/main.css">
+  <link rel="stylesheet" href="/static/css/components.css">
+</head>
+<body class="app-layout">
+  <button class="mobile-menu-btn" id="mobile-menu-btn">☰</button>
+  <div class="sidebar-overlay" id="sidebar-overlay"></div>
+  <aside class="sidebar" id="sidebar"></aside>
+
+  <main class="main-content">
+    <div class="page-header"><h1>Profile & Settings</h1><p>Update your training profile and account settings</p></div>
+
+    <div class="grid-2">
+      <!-- Profile -->
+      <div class="card">
+        <h3 class="card-title mb-lg">Athlete Profile</h3>
+        <form onsubmit="saveProfile(event)">
+          <div class="form-group mb-md">
+            <label class="form-label">Display Name</label>
+            <input type="text" id="display_name" class="form-control" placeholder="Your name">
+          </div>
+          <div class="form-group mb-md">
+            <label class="form-label">Training Style</label>
+            <div class="type-pills mb-sm" id="training-pills">
+              <div class="type-pill" data-value="gym">🏋️ Gym</div>
+              <div class="type-pill" data-value="calisthenics">🤸 Calisthenics</div>
+              <div class="type-pill" data-value="hybrid">⚡ Hybrid</div>
+              <div class="type-pill" data-value="home">🏠 Home</div>
+              <div class="type-pill" data-value="functional">🔥 Functional</div>
+              <div class="type-pill" data-value="other">💪 Other</div>
+            </div>
+            <input type="hidden" id="training_type">
+          </div>
+          <div class="form-group mb-md">
+            <label class="form-label">Experience Level</label>
+            <select id="experience_level" class="form-control">
+              <option value="beginner">Beginner</option>
+              <option value="intermediate">Intermediate</option>
+              <option value="advanced">Advanced</option>
+              <option value="elite">Elite</option>
+            </select>
+          </div>
+          <div class="form-row mb-md">
+            <div class="form-group">
+              <label class="form-label">Age</label>
+              <input type="number" id="age" class="form-control" placeholder="25" min="10" max="100">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Height (cm)</label>
+              <input type="number" id="height_cm" class="form-control" placeholder="175">
+            </div>
+          </div>
+          <div class="form-group mb-lg">
+            <label class="form-label">Bio</label>
+            <textarea id="bio" class="form-control" rows="3" placeholder="Tell the community about your training..."></textarea>
+          </div>
+          <button type="submit" class="btn btn-primary btn-full">Save Profile</button>
+        </form>
+      </div>
+
+      <!-- Account & security -->
+      <div style="display:flex;flex-direction:column;gap:var(--space-lg)">
+        <!-- Account info -->
+        <div class="card">
+          <h3 class="card-title mb-lg">Account</h3>
+          <div style="background:var(--bg-input);border-radius:var(--radius-md);padding:var(--space-md);margin-bottom:var(--space-lg)">
+            <div style="font-size:.75rem;color:var(--text-muted);margin-bottom:4px">Email</div>
+            <div id="account-email" style="font-weight:600"></div>
+          </div>
+          <div style="background:var(--bg-input);border-radius:var(--radius-md);padding:var(--space-md)">
+            <div style="font-size:.75rem;color:var(--text-muted);margin-bottom:4px">Role</div>
+            <div id="account-role" style="font-weight:600;text-transform:capitalize"></div>
+          </div>
+        </div>
+
+        <!-- Change password -->
+        <div class="card">
+          <h3 class="card-title mb-lg">Change Password</h3>
+          <form onsubmit="changePassword(event)">
+            <div class="form-group mb-md">
+              <label class="form-label">Current Password</label>
+              <input type="password" id="old-pw" class="form-control" placeholder="Current password">
+            </div>
+            <div class="form-group mb-md">
+              <label class="form-label">New Password</label>
+              <input type="password" id="new-pw" class="form-control" placeholder="New password (8+ chars)" oninput="updateStrength(this.value)">
+              <div class="password-strength">
+                <div class="strength-bar-wrap"><div class="strength-bar strength-0" id="strength-bar"></div></div>
+              </div>
+            </div>
+            <div class="form-group mb-lg">
+              <label class="form-label">Confirm New Password</label>
+              <input type="password" id="confirm-pw" class="form-control" placeholder="Confirm">
+            </div>
+            <button type="submit" class="btn btn-primary btn-full">Update Password</button>
+          </form>
+        </div>
+
+        <!-- Stats summary -->
+        <div class="card">
+          <h3 class="card-title mb-lg">Training Stats</h3>
+          <div id="profile-stats" style="display:grid;grid-template-columns:1fr 1fr;gap:var(--space-md)"></div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <div id="toast-container" class="toast-container"></div>
+  <script src="/static/js/utils.js"></script>
+  <script src="/static/js/api.js"></script>
+  <script>
+    onReady(async () => {
+      requireAuth(); renderSidebar(); initMobileSidebar();
+      const user = getUser();
+      document.getElementById('account-email').textContent = user?.email || '—';
+      document.getElementById('account-role').textContent  = user?.role || 'athlete';
+
+      // Training type pills
+      document.getElementById('training-pills').addEventListener('click', e => {
+        const pill = e.target.closest('.type-pill');
+        if (!pill) return;
+        document.querySelectorAll('.type-pill').forEach(p => p.classList.remove('selected'));
+        pill.classList.add('selected');
+        document.getElementById('training_type').value = pill.dataset.value;
+      });
+
+      // Load profile
+      const profile = await apiFetch('/api/athletes/profile', {}, false);
+      if (!profile._error && profile) {
+        document.getElementById('display_name').value    = profile.display_name || '';
+        document.getElementById('experience_level').value= profile.experience_level || 'intermediate';
+        document.getElementById('age').value             = profile.age || '';
+        document.getElementById('height_cm').value       = profile.height_cm || '';
+        document.getElementById('bio').value             = profile.bio || '';
+        document.getElementById('training_type').value   = profile.training_type || 'gym';
+        document.querySelectorAll('.type-pill').forEach(p => {
+          p.classList.toggle('selected', p.dataset.value === profile.training_type);
+        });
+      }
+
+      // Stats
+      const stats = await apiFetch('/api/athletes/stats', {}, false);
+      if (!stats._error) {
+        document.getElementById('profile-stats').innerHTML = `
+          <div class="stat-card card-sm"><div class="stat-value" style="font-size:1.4rem">${stats.total_workouts}</div><div class="stat-label">Workouts</div></div>
+          <div class="stat-card card-sm"><div class="stat-value" style="font-size:1.4rem">${stats.current_streak}</div><div class="stat-label">Day Streak</div></div>
+          <div class="stat-card card-sm"><div class="stat-value" style="font-size:1.4rem">${stats.total_sets}</div><div class="stat-label">Total Sets</div></div>
+          <div class="stat-card card-sm"><div class="stat-value" style="font-size:.9rem">${formatDate(stats.last_workout_date)||'—'}</div><div class="stat-label">Last Workout</div></div>
+        `;
+      }
+    });
+
+    function updateStrength(pw) {
+      let s = 0;
+      if (pw.length >= 8) s++;
+      if (/[A-Z]/.test(pw)) s++;
+      if (/\d/.test(pw)) s++;
+      if (/[^A-Za-z0-9]/.test(pw)) s++;
+      document.getElementById('strength-bar').className = `strength-bar strength-${s}`;
+    }
+
+    async function saveProfile(e) {
+      e.preventDefault();
+      const res = await apiFetch('/api/athletes/profile', { method:'PUT', body:{
+        display_name:     document.getElementById('display_name').value.trim(),
+        training_type:    document.getElementById('training_type').value,
+        experience_level: document.getElementById('experience_level').value,
+        age:              parseInt(document.getElementById('age').value) || null,
+        height_cm:        parseFloat(document.getElementById('height_cm').value) || null,
+        bio:              document.getElementById('bio').value.trim(),
+      }});
+      if (!res._error) {
+        showToast('Profile updated!','success');
+        const user  = getUser();
+        const name  = document.getElementById('display_name').value.trim();
+        const type  = document.getElementById('training_type').value;
+        saveAuth(getToken(), { ...user, display_name: name, training_type: type });
+        renderSidebar();
+      }
+    }
+
+    async function changePassword(e) {
+      e.preventDefault();
+      const oldPw  = document.getElementById('old-pw').value;
+      const newPw  = document.getElementById('new-pw').value;
+      const confPw = document.getElementById('confirm-pw').value;
+      if (newPw !== confPw) { showToast('Passwords do not match','error'); return; }
+      const res = await apiFetch('/api/auth/change-password', { method:'POST', body:{ old_password: oldPw, new_password: newPw } });
+      if (!res._error) {
+        showToast('Password changed! Please log in again.','success');
+        setTimeout(() => { clearAuth(); window.location.href='/login.html'; }, 2000);
+      }
+    }
+  </script>
+</body>
+</html>

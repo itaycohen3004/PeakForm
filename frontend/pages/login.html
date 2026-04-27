@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+  <title>Sign In — PeakForm</title>
+  <meta name="description" content="Sign in to PeakForm — your strength training tracker.">
+  <link rel="icon" href="/static/assets/logo.png">
+  <link rel="stylesheet" href="/static/css/main.css">
+  <link rel="stylesheet" href="/static/css/components.css">
+</head>
+<body class="auth-page">
+  <div class="auth-card">
+    <div class="auth-logo">
+      <div style="font-size:2.2rem;margin-bottom:8px">🏔️</div>
+      <div class="auth-logo-text">PeakForm</div>
+      <div style="font-size:.82rem;color:var(--text-muted);margin-top:4px">Strength Training Tracker</div>
+    </div>
+    <div class="auth-title">Welcome back</div>
+    <div class="auth-subtitle">Sign in to continue your training</div>
+
+    <form id="login-form" onsubmit="handleLogin(event)" novalidate>
+      <div class="form-group mb-md">
+        <label class="form-label" for="email">Email</label>
+        <input type="email" id="email" class="form-control" placeholder="you@email.com" autocomplete="email">
+      </div>
+      <div class="form-group mb-lg">
+        <label class="form-label" for="password">Password</label>
+        <div style="position:relative">
+          <input type="password" id="password" class="form-control" placeholder="••••••••" autocomplete="current-password">
+          <button type="button" onclick="togglePW()" style="position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:var(--text-muted);font-size:.9rem" aria-label="Toggle password">👁</button>
+        </div>
+      </div>
+      <button type="submit" class="btn btn-primary btn-full btn-lg" id="login-btn">Sign In</button>
+    </form>
+
+    <div style="text-align:center;margin-top:var(--space-lg);font-size:.85rem;color:var(--text-muted)">
+      No account? <a href="/register.html">Create one free →</a>
+    </div>
+
+    <div style="margin-top:var(--space-xl);background:rgba(139,92,246,.08);border:1px solid rgba(139,92,246,.2);border-radius:var(--radius-md);padding:var(--space-md)">
+      <div style="font-size:.75rem;color:var(--text-muted);font-weight:700;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">Demo Access</div>
+      <div style="font-size:.82rem;color:var(--text-secondary)">
+        <strong>admin@peakform.app</strong> / <strong>Admin@1234</strong>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast-container" class="toast-container"></div>
+  <script src="/static/js/utils.js"></script>
+  <script src="/static/js/api.js"></script>
+  <script>
+    // Migrate old reprise tokens
+    const oldToken = localStorage.getItem('rp_token');
+    if (oldToken && !localStorage.getItem('pf_token')) {
+      localStorage.setItem('pf_token', oldToken);
+      const oldUser = localStorage.getItem('rp_user');
+      if (oldUser) localStorage.setItem('pf_user', oldUser);
+    }
+    if (isLoggedIn()) window.location.href = '/dashboard.html';
+
+    function togglePW() {
+      const i = document.getElementById('password');
+      i.type = i.type === 'password' ? 'text' : 'password';
+    }
+
+    async function handleLogin(e) {
+      e.preventDefault();
+      const btn = document.getElementById('login-btn');
+      btn.textContent = 'Signing in...'; btn.disabled = true;
+      const payload = {
+        email:    document.getElementById('email').value.trim(),
+        password: document.getElementById('password').value,
+      };
+      const res = await apiFetch('/api/auth/login', { method:'POST', body: payload });
+      btn.textContent = 'Sign In'; btn.disabled = false;
+      if (res._error) return;
+
+      saveAuth(res.token, {
+        user_id:             res.user_id,
+        email:               res.email,
+        role:                res.role,
+        display_name:        res.display_name || res.email,
+        training_type:       res.training_type || 'gym',
+        onboarding_complete: res.onboarding_complete,
+      });
+
+      if (!res.onboarding_complete) {
+        window.location.href = '/onboarding.html';
+      } else {
+        window.location.href = '/dashboard.html';
+      }
+    }
+  </script>
+</body>
+</html>
