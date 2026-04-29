@@ -5,9 +5,11 @@ from .db import get_db
 from backend.services.encryption_service import encrypt_data, decrypt_data
 
 class WorkoutSession:
-    def __init__(self, id=None, user_id=None, template_id=None, name=None, workout_date=None, 
-                 started_at=None, finished_at=None, duration_minutes=0, total_sets=0, 
-                 total_reps=0, total_volume_kg=0, muscles_worked=None, notes=None):
+    def __init__(self, id=None, user_id=None, template_id=None, name=None, workout_date=None,
+                 started_at=None, finished_at=None, duration_minutes=0, total_sets=0,
+                 total_reps=0, total_volume_kg=0, muscles_worked=None, notes=None,
+                 is_draft=0, created_at=None, **kwargs):
+        """Accept all workouts table columns. **kwargs absorbs any future columns safely."""
         self.id = id
         self.user_id = user_id
         self.template_id = template_id
@@ -15,12 +17,14 @@ class WorkoutSession:
         self.workout_date = workout_date
         self.started_at = started_at
         self.finished_at = finished_at
-        self.duration_minutes = duration_minutes
-        self.total_sets = total_sets
-        self.total_reps = total_reps
-        self.total_volume_kg = total_volume_kg
+        self.duration_minutes = duration_minutes or 0
+        self.total_sets = total_sets or 0
+        self.total_reps = total_reps or 0
+        self.total_volume_kg = total_volume_kg or 0
         self.muscles_worked = muscles_worked
         self.notes = notes
+        self.is_draft = is_draft or 0
+        self.created_at = created_at
 
     @staticmethod
     def get_by_id(workout_id):
@@ -32,17 +36,21 @@ class WorkoutSession:
 
     def finish(self, duration=None, notes=None):
         """Calculate and save final workout data."""
+        import traceback
         db = get_db()
         self.finished_at = datetime.datetime.now().isoformat()
-        if duration: self.duration_minutes = duration
-        if notes: self.notes = encrypt_data(notes)
+        # Accept duration=0 as valid (falsy check was a bug)
+        if duration is not None:
+            self.duration_minutes = int(duration)
+        if notes is not None:
+            self.notes = encrypt_data(notes) if notes else None
 
-        # Calculate metrics
+        # Calculate metrics — use LEFT JOIN so workouts without exercises still finish
         sets_data = db.execute("""
             SELECT ws.reps, ws.weight_kg, e.muscles
             FROM workout_sets ws
             JOIN workout_exercises we ON ws.workout_exercise_id = we.id
-            JOIN exercises e ON we.exercise_id = e.id
+            LEFT JOIN exercises e ON we.exercise_id = e.id
             WHERE we.workout_id = ?
         """, (self.id,)).fetchall()
 
@@ -74,11 +82,19 @@ class WorkoutSession:
 
 # --- Legacy Functional Wrappers ---
 def finish_workout(workout_id: int, duration: int = None, notes: str = None):
-    ws = WorkoutSession.get_by_id(workout_id)
-    if ws:
+    """Finish a workout session — returns True on success, raises on failure."""
+    import traceback
+    try:
+        ws = WorkoutSession.get_by_id(workout_id)
+        if not ws:
+            print(f"[finish_workout] Workout {workout_id} not found in DB")
+            return False
         ws.finish(duration, notes)
         return True
-    return False
+    except Exception as exc:
+        print(f"[finish_workout] ERROR finishing workout {workout_id}: {exc}")
+        traceback.print_exc()
+        raise
 
 # ============================================================
 # Workouts
@@ -178,6 +194,7 @@ def update_workout(workout_id: int, data: dict):
         "notes",
         "duration_minutes",
         "finished_at",
+        "is_draft",
     ]
 
     updates = {k: v for k, v in data.items() if k in allowed}

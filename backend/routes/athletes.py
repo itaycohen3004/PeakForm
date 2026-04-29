@@ -74,34 +74,82 @@ def dashboard():
     from backend.models.workout import get_workouts, get_weekly_volume
     from backend.models.goal import get_goals
     from backend.models.body_weight import get_latest_body_weight
-    from backend.models.template import get_today_template
 
-    profile    = get_athlete_profile(g.user_id)
-    stats_data = get_athlete_stats(g.user_id)
-    recent     = get_workouts(g.user_id, limit=8)
-    volume     = get_weekly_volume(g.user_id, weeks=8)
-    goals      = get_goals(g.user_id, include_completed=True)
-    latest_bw  = get_latest_body_weight(g.user_id)
-    today_tpl  = get_today_template(g.user_id)
+    try:
+        profile = get_athlete_profile(g.user_id)
+    except Exception:
+        profile = None
+
+    try:
+        stats_data = get_athlete_stats(g.user_id)
+    except Exception:
+        stats_data = {}
+
+    try:
+        recent = get_workouts(g.user_id, limit=8)
+    except Exception:
+        recent = []
+
+    try:
+        volume = get_weekly_volume(g.user_id, weeks=8)
+    except Exception:
+        volume = []
+
+    try:
+        goals = get_goals(g.user_id, include_completed=True)
+    except Exception:
+        goals = []
+
+    try:
+        latest_bw = get_latest_body_weight(g.user_id)
+    except Exception:
+        latest_bw = None
+
+    try:
+        from backend.models.template import get_today_template
+        today_tpl = get_today_template(g.user_id)
+    except Exception:
+        today_tpl = None
 
     # Unread notifications count
-    db = get_db()
-    unread = db.execute(
-        "SELECT COUNT(*) as c FROM notifications WHERE user_id=? AND is_read=0",
-        (g.user_id,)
-    ).fetchone()["c"]
+    try:
+        db = get_db()
+        unread = db.execute(
+            "SELECT COUNT(*) as c FROM notifications WHERE user_id=? AND is_read=0",
+            (g.user_id,)
+        ).fetchone()["c"]
+    except Exception:
+        unread = 0
 
     # Build athlete object for extra metadata
-    athlete_obj = Athlete(dict(profile)) if profile else None
+    try:
+        athlete_obj = Athlete(dict(profile)) if profile else None
+    except Exception:
+        athlete_obj = None
+
+    # Add exercise_count to recent workouts
+    recent_list = []
+    for w in recent:
+        wd = dict(w)
+        try:
+            db = get_db()
+            cnt = db.execute(
+                "SELECT COUNT(*) as c FROM workout_exercises WHERE workout_id=?",
+                (wd["id"],)
+            ).fetchone()["c"]
+            wd["exercise_count"] = cnt
+        except Exception:
+            wd["exercise_count"] = 0
+        recent_list.append(wd)
 
     return jsonify({
-        "profile":           athlete_obj.to_dict() if athlete_obj else None,
-        "stats":             stats_data,
-        "recent_workouts":   [dict(w) for w in recent],
-        "weekly_volume":     [dict(v) for v in reversed(volume)],
-        "goals":             [dict(g2) for g2 in goals],
+        "profile":            athlete_obj.to_dict() if athlete_obj else None,
+        "stats":              stats_data,
+        "recent_workouts":    recent_list,
+        "weekly_volume":      [dict(v) for v in reversed(list(volume))],
+        "goals":              [dict(g2) for g2 in goals],
         "latest_body_weight": dict(latest_bw) if latest_bw else None,
-        "today_template":    dict(today_tpl) if today_tpl else None,
+        "today_template":     dict(today_tpl) if today_tpl else None,
         "unread_notifications": unread,
     }), 200
 

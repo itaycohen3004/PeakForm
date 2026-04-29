@@ -35,22 +35,29 @@ def migrate(db_path=DB_PATH):
     # users
     add_column_if_missing("users", "email_index", "TEXT UNIQUE")
 
-    # exercises
-    add_column_if_missing("exercises", "training_styles",    "TEXT DEFAULT 'gym,hybrid'")
-    add_column_if_missing("exercises", "muscles_secondary",  "TEXT")
+    # exercises — add status for approval workflow and muscles_tags for multi-category
+    add_column_if_missing("exercises", "training_styles",  "TEXT DEFAULT 'gym,hybrid'")
+    add_column_if_missing("exercises", "muscles_secondary","TEXT")
+    add_column_if_missing("exercises", "muscles_tags",     "TEXT")  # comma-sep multi-muscle
+    add_column_if_missing("exercises", "status",           "TEXT NOT NULL DEFAULT 'approved'")
+
+    # Set all existing exercises to approved (seeded ones)
+    cursor.execute("UPDATE exercises SET status = 'approved' WHERE status IS NULL OR status = ''")
 
     # workouts
-    add_column_if_missing("workouts", "is_draft",          "INTEGER NOT NULL DEFAULT 0")
-    add_column_if_missing("workouts", "total_sets",        "INTEGER DEFAULT 0")
-    add_column_if_missing("workouts", "total_reps",        "INTEGER DEFAULT 0")
-    add_column_if_missing("workouts", "total_volume_kg",   "REAL DEFAULT 0")
-    add_column_if_missing("workouts", "muscles_worked",    "TEXT")
+    add_column_if_missing("workouts", "is_draft",        "INTEGER NOT NULL DEFAULT 0")
+    add_column_if_missing("workouts", "total_sets",      "INTEGER DEFAULT 0")
+    add_column_if_missing("workouts", "total_reps",      "INTEGER DEFAULT 0")
+    add_column_if_missing("workouts", "total_volume_kg", "REAL DEFAULT 0")
+    add_column_if_missing("workouts", "muscles_worked",  "TEXT")
 
     # workout_sets
     add_column_if_missing("workout_sets", "rpe", "REAL")
 
+    # template_exercises — add default_reps for manual template creation
+    add_column_if_missing("template_exercises", "default_reps", "INTEGER")
+
     # goals — new types (need to recreate table if CHECK constraint is wrong)
-    # We'll just try adding missing columns
     add_column_if_missing("goals", "starting_value", "REAL DEFAULT 0")
     add_column_if_missing("goals", "photo_path",     "TEXT")
     add_column_if_missing("goals", "completed_at",   "DATETIME")
@@ -176,7 +183,6 @@ def migrate(db_path=DB_PATH):
         cursor.execute("DROP TABLE IF EXISTS goals_old")
         migrations.append("Recreated goals table")
 
-    # Populate email_index and encrypt emails
     from backend.services.encryption_service import encrypt_data, decrypt_data, blind_index
     cursor.execute("SELECT id, email, email_index FROM users")
     users = cursor.fetchall()
@@ -186,8 +192,11 @@ def migrate(db_path=DB_PATH):
             raw = decrypt_data(email)
             enc = encrypt_data(raw)
             bidx = blind_index(raw)
-            cursor.execute("UPDATE users SET email = ?, email_index = ? WHERE id = ?", (enc, bidx, u_id))
-            migrations.append(f"Encrypted/indexed user {u_id}")
+            try:
+                cursor.execute("UPDATE users SET email = ?, email_index = ? WHERE id = ?", (enc, bidx, u_id))
+                migrations.append(f"Encrypted/indexed user {u_id}")
+            except Exception as e:
+                print(f"Skipping user {u_id} due to error: {e}")
 
     conn.commit()
     conn.close()

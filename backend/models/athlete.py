@@ -147,44 +147,69 @@ def update_athlete_profile(user_id: int, updates: dict):
 
 def get_athlete_stats(user_id: int) -> dict:
     db = get_db()
-    total_workouts = db.execute(
-        "SELECT COUNT(*) as c FROM workouts WHERE user_id=? AND finished_at IS NOT NULL AND is_draft=0",
-        (user_id,)
-    ).fetchone()["c"]
+    try:
+        total_workouts = db.execute(
+            "SELECT COUNT(*) as c FROM workouts WHERE user_id=? AND finished_at IS NOT NULL AND is_draft=0",
+            (user_id,)
+        ).fetchone()["c"]
+    except Exception:
+        total_workouts = 0
 
-    total_sets = db.execute(
-        """SELECT COUNT(ws.id) as c FROM workout_sets ws
-           JOIN workout_exercises we ON ws.workout_exercise_id = we.id
-           JOIN workouts w ON we.workout_id = w.id
-           WHERE w.user_id=? AND w.finished_at IS NOT NULL""",
-        (user_id,),
-    ).fetchone()["c"]
+    try:
+        total_sets = db.execute(
+            """SELECT COUNT(ws.id) as c FROM workout_sets ws
+               JOIN workout_exercises we ON ws.workout_exercise_id = we.id
+               JOIN workouts w ON we.workout_id = w.id
+               WHERE w.user_id=? AND w.finished_at IS NOT NULL""",
+            (user_id,),
+        ).fetchone()["c"]
+    except Exception:
+        total_sets = 0
 
-    total_volume = db.execute(
-        """SELECT COALESCE(SUM(ws.reps * ws.weight_kg), 0) as v FROM workout_sets ws
-           JOIN workout_exercises we ON ws.workout_exercise_id = we.id
-           JOIN workouts w ON we.workout_id = w.id
-           WHERE w.user_id=? AND w.finished_at IS NOT NULL
-             AND ws.reps IS NOT NULL AND ws.weight_kg IS NOT NULL""",
-        (user_id,),
-    ).fetchone()["v"]
+    try:
+        total_volume = db.execute(
+            """SELECT COALESCE(SUM(ws.reps * ws.weight_kg), 0) as v FROM workout_sets ws
+               JOIN workout_exercises we ON ws.workout_exercise_id = we.id
+               JOIN workouts w ON we.workout_id = w.id
+               WHERE w.user_id=? AND w.finished_at IS NOT NULL
+                 AND ws.reps IS NOT NULL AND ws.weight_kg IS NOT NULL""",
+            (user_id,),
+        ).fetchone()["v"]
+    except Exception:
+        total_volume = 0
 
-    streak = _calculate_streak(user_id, db)
-    workouts_this_week = _workouts_this_week(user_id, db)
+    try:
+        streak = _calculate_streak(user_id, db)
+    except Exception:
+        streak = 0
 
-    last_workout = db.execute(
-        "SELECT workout_date FROM workouts WHERE user_id=? AND finished_at IS NOT NULL ORDER BY workout_date DESC LIMIT 1",
-        (user_id,),
-    ).fetchone()
+    try:
+        workouts_this_week = _workouts_this_week(user_id, db)
+    except Exception:
+        workouts_this_week = 0
+
+    try:
+        last_workout = db.execute(
+            "SELECT workout_date FROM workouts WHERE user_id=? AND finished_at IS NOT NULL ORDER BY workout_date DESC LIMIT 1",
+            (user_id,),
+        ).fetchone()
+        last_workout_date = last_workout["workout_date"] if last_workout else None
+    except Exception:
+        last_workout_date = None
+
+    try:
+        avg_dur = _avg_duration(user_id, db)
+    except Exception:
+        avg_dur = 0
 
     return {
-        "total_workouts":    total_workouts,
-        "total_sets":        total_sets,
-        "total_volume_kg":   round(float(total_volume), 1),
-        "current_streak":    streak,
+        "total_workouts":     total_workouts,
+        "total_sets":         total_sets,
+        "total_volume_kg":    round(float(total_volume or 0), 1),
+        "current_streak":     streak,
         "workouts_this_week": workouts_this_week,
-        "last_workout_date": last_workout["workout_date"] if last_workout else None,
-        "avg_duration":      _avg_duration(user_id, db),
+        "last_workout_date":  last_workout_date,
+        "avg_duration":       avg_dur,
     }
 
 def _avg_duration(user_id: int, db) -> int:
@@ -196,18 +221,24 @@ def _avg_duration(user_id: int, db) -> int:
 
 
 def _calculate_streak(user_id: int, db) -> int:
-    rows = db.execute(
-        """SELECT DISTINCT workout_date FROM workouts
-           WHERE user_id=? AND finished_at IS NOT NULL
-           ORDER BY workout_date DESC""",
-        (user_id,),
-    ).fetchall()
+    try:
+        rows = db.execute(
+            """SELECT DISTINCT workout_date FROM workouts
+               WHERE user_id=? AND finished_at IS NOT NULL AND workout_date IS NOT NULL
+               ORDER BY workout_date DESC""",
+            (user_id,),
+        ).fetchall()
+    except Exception:
+        return 0
     if not rows:
         return 0
     streak = 0
     today = datetime.date.today()
     for i, row in enumerate(rows):
-        d = datetime.date.fromisoformat(str(row["workout_date"]))
+        try:
+            d = datetime.date.fromisoformat(str(row["workout_date"]).split("T")[0].split(" ")[0])
+        except Exception:
+            break
         expected = today - datetime.timedelta(days=i)
         if d == expected:
             streak += 1

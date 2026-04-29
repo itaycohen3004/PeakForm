@@ -3,13 +3,14 @@
  * Handles all workout logging logic including auto-save.
  */
 
-let workoutId   = null;
+let workoutId    = null;
 let workoutStart = null;
-let exercises   = [];     // {exercise_id, name, set_type, weId, sets:[...]}
+let exercises    = [];   // {exercise_id, name, set_type, weId, sets:[...]}
 let allExercises = [];
-let timerInterval = null;
+let timerInterval    = null;
 let autoSaveInterval = null;
-let isDraft = false;
+let isDraft  = false;
+let isSaving = false;  // Guard: prevents double-submit
 
 // ── Init ──────────────────────────────────────────────────────
 
@@ -19,16 +20,16 @@ onReady(async () => {
   initMobileSidebar();
 
   document.getElementById('workout-date').value = todayISO();
-  
+
   const searchInput = document.getElementById('exercise-search');
   if (searchInput) {
     searchInput.addEventListener('focus', () => searchExercises(''));
   }
 
-  const params = new URLSearchParams(window.location.search);
-  const fromTemplate = params.get('from_template');
+  const params        = new URLSearchParams(window.location.search);
+  const fromTemplate  = params.get('from_template');
   const workoutIdParam = params.get('workout_id');
-  const restoreParam = params.get('restore');
+  const restoreParam  = params.get('restore');
 
   if (fromTemplate) {
     await startFromTemplate(parseInt(fromTemplate));
@@ -37,7 +38,6 @@ onReady(async () => {
   } else if (restoreParam && hasDraft('active_workout')) {
     restoreFromDraft();
   } else {
-    // Show start options
     showStartOptions();
   }
 });
@@ -47,14 +47,12 @@ onReady(async () => {
 async function showStartOptions() {
   document.getElementById('start-options').style.display = 'block';
   document.getElementById('workout-logger').style.display = 'none';
-  document.getElementById('summary-bar').style.display = 'none';
+  document.getElementById('summary-bar').style.display   = 'none';
 
-  // Check if draft exists
   if (hasDraft('active_workout')) {
     document.getElementById('resume-card').style.display = 'block';
   }
 
-  // Load templates for selector
   const data = await apiFetch('/api/templates', {}, false);
   if (!data._error) {
     const list = document.getElementById('template-list');
@@ -96,7 +94,7 @@ function checkResumeDraft() {
 function startWorkoutLogger(name = '') {
   document.getElementById('start-options').style.display = 'none';
   document.getElementById('workout-logger').style.display = 'block';
-  document.getElementById('summary-bar').style.display = 'flex';
+  document.getElementById('summary-bar').style.display   = 'flex';
   document.getElementById('workout-name').value = name;
   workoutStart = Date.now();
   startTimer();
@@ -112,7 +110,7 @@ async function startFromTemplate(templateId) {
 
   document.getElementById('start-options').style.display = 'none';
   document.getElementById('workout-logger').style.display = 'block';
-  document.getElementById('summary-bar').style.display = 'flex';
+  document.getElementById('summary-bar').style.display   = 'flex';
   document.getElementById('workout-name').value = tpl.name;
 
   workoutStart = Date.now();
@@ -121,21 +119,21 @@ async function startFromTemplate(templateId) {
   exercises = [];
   for (const ex of (tpl.exercises || [])) {
     const exObj = {
-      exercise_id: ex.exercise_id,
-      name:        ex.exercise_name,
-      set_type:    ex.set_type || 'reps_weight',
-      weId:        null,
-      sets:        [],
+      exercise_id:   ex.exercise_id,
+      name:          ex.exercise_name,
+      set_type:      ex.set_type || 'reps_weight',
+      weId:          null,
+      sets:          [],
+      lastSession:   null,  // Will be populated below
     };
-    // Pre-fill sets from template
     const setCount = ex.default_sets || 3;
     for (let i = 0; i < setCount; i++) {
       exObj.sets.push({
-        set_number: i + 1,
-        weight_kg:  ex.sets?.[i]?.target_weight || null,
-        reps:       ex.default_reps || ex.sets?.[i]?.target_reps || null,
+        set_number:       i + 1,
+        weight_kg:        ex.sets?.[i]?.target_weight || null,
+        reps:             ex.default_reps || ex.sets?.[i]?.target_reps || null,
         duration_seconds: null,
-        is_warmup: false,
+        is_warmup:        false,
       });
     }
     exercises.push(exObj);
@@ -145,6 +143,9 @@ async function startFromTemplate(templateId) {
   startAutoSave();
   loadExerciseList();
   showToast(`Template "${tpl.name}" loaded!`, 'success');
+
+  // Fetch last-session intel for each exercise in parallel (background, non-blocking)
+  _loadIntelPanels(exercises);
 }
 
 async function resumeWorkout(workoutId_) {
@@ -154,9 +155,9 @@ async function resumeWorkout(workoutId_) {
   workoutId = workoutId_;
   document.getElementById('start-options').style.display = 'none';
   document.getElementById('workout-logger').style.display = 'block';
-  document.getElementById('summary-bar').style.display = 'flex';
-  document.getElementById('workout-name').value = data.name || '';
-  document.getElementById('workout-date').value = data.workout_date || todayISO();
+  document.getElementById('summary-bar').style.display   = 'flex';
+  document.getElementById('workout-name').value  = data.name || '';
+  document.getElementById('workout-date').value  = data.workout_date || todayISO();
   document.getElementById('workout-notes').value = data.notes || '';
 
   exercises = (data.exercises || []).map(ex => ({
@@ -164,7 +165,7 @@ async function resumeWorkout(workoutId_) {
     name:        ex.exercise_name,
     set_type:    ex.set_type || 'reps_weight',
     weId:        ex.id,
-    sets:        (ex.sets || []).map(s => ({
+    sets: (ex.sets || []).map(s => ({
       id:               s.id,
       set_number:       s.set_number,
       weight_kg:        s.weight_kg,
@@ -187,14 +188,16 @@ function restoreFromDraft() {
 
   document.getElementById('start-options').style.display = 'none';
   document.getElementById('workout-logger').style.display = 'block';
-  document.getElementById('summary-bar').style.display = 'flex';
-  document.getElementById('workout-name').value = draft.name || '';
-  document.getElementById('workout-date').value = draft.date || todayISO();
+  document.getElementById('summary-bar').style.display   = 'flex';
+  document.getElementById('workout-name').value  = draft.name || '';
+  document.getElementById('workout-date').value  = draft.date || todayISO();
   document.getElementById('workout-notes').value = draft.notes || '';
 
-  workoutId = draft.workoutId || null;
-  exercises = draft.exercises || [];
-  workoutStart = draft.startTime ? (Date.now() - (draft.savedAt - draft.startTime)) : Date.now();
+  workoutId    = draft.workoutId || null;
+  exercises    = draft.exercises || [];
+  workoutStart = draft.startTime
+    ? (Date.now() - (draft.savedAt - draft.startTime))
+    : Date.now();
 
   isDraft = true;
   renderExercises();
@@ -203,6 +206,82 @@ function restoreFromDraft() {
   loadExerciseList();
   showToast('Draft restored — keep going! 💪', 'success');
 }
+
+// ── In-Workout Intelligence ────────────────────────────────────
+
+async function _loadIntelPanels(exList) {
+  // Fetch all last-sessions in parallel
+  const results = await Promise.all(
+    exList.map(ex =>
+      ex.exercise_id
+        ? apiFetch(`/api/exercises/${ex.exercise_id}/last-session`, {}, false)
+            .catch(() => ({ found: false }))
+        : Promise.resolve({ found: false })
+    )
+  );
+
+  results.forEach((data, idx) => {
+    const ex = exList[idx];
+    ex.lastSession = (data && data.found) ? data : null;
+
+    // Update just the intel banner div without re-rendering the whole block
+    const bannerEl = document.getElementById(`intel-${idx}`);
+    if (!bannerEl) return;
+
+    if (ex.lastSession) {
+      const intel = ex.lastSession;
+      const parts = [];
+      if (intel.best_weight != null && intel.best_weight > 0) parts.push(`${intel.best_weight}kg`);
+      if (intel.best_reps != null && intel.best_reps > 0) parts.push(`${intel.best_reps} reps`);
+      const summary = parts.length ? parts.join(' × ') : 'Bodyweight';
+      const dateStr = intel.workout_date ? ` · ${intel.workout_date}` : '';
+      const setDetails = intel.sets && intel.sets.length > 1
+        ? `<div class="intel-sets">${intel.sets.map(s => {
+            const p = [];
+            if (s.weight_kg != null) p.push(s.weight_kg + 'kg');
+            if (s.reps != null) p.push(s.reps + ' reps');
+            if (s.duration_seconds != null) p.push(s.duration_seconds + 's');
+            return `<span class="intel-set-pill">Set ${s.set_number}: ${p.join(' × ')}</span>`;
+          }).join('')}</div>` : '';
+          
+      bannerEl.className = 'intel-banner';
+      bannerEl.innerHTML = `
+        <span class="intel-icon">📊</span>
+        <div class="intel-content" style="width:100%">
+          <div class="intel-label">Last session${dateStr}</div>
+          <div class="intel-value">${summary}</div>
+          ${setDetails}
+          <div id="ai-rec-${idx}" style="margin-top:8px;padding-top:8px;border-top:1px dashed rgba(255,255,255,0.1);font-size:0.8rem;color:var(--violet-l);display:flex;align-items:center;gap:6px">
+            <span class="spinner" style="width:12px;height:12px;border-width:2px;border-top-color:var(--violet-l)"></span> AI analyzing...
+          </div>
+        </div>`;
+        
+      // Fetch AI recommendation asynchronously
+      apiFetch(`/api/ai/analyze/${ex.exercise_id}`, { method: 'POST' }, false)
+        .then(aiRes => {
+          const aiEl = document.getElementById(`ai-rec-${idx}`);
+          if (!aiEl) return;
+          if (aiRes && !aiRes._error && aiRes.next_reps) {
+            const w = aiRes.next_weight ? `${aiRes.next_weight}kg × ` : '';
+            aiEl.innerHTML = `🤖 <strong>AI Suggests:</strong> ${w}${aiRes.next_reps} reps`;
+            aiEl.title = aiRes.progression_note || '';
+          } else {
+            aiEl.innerHTML = `🤖 <strong>AI Suggests:</strong> Match last session`;
+          }
+        })
+        .catch(() => {
+          const aiEl = document.getElementById(`ai-rec-${idx}`);
+          if (aiEl) aiEl.style.display = 'none';
+        });
+        
+    } else {
+      bannerEl.className = 'intel-banner intel-empty';
+      bannerEl.innerHTML = `<span class="intel-icon">💡</span> First time doing this exercise — give it your best!`;
+    }
+  });
+}
+
+
 
 // ── Timer ─────────────────────────────────────────────────────
 
@@ -225,14 +304,22 @@ function startTimer() {
 
 // ── Auto Save ─────────────────────────────────────────────────
 
+let _visibilityHandler = null;
+let _unloadHandler     = null;
+
 function startAutoSave() {
   clearInterval(autoSaveInterval);
-  autoSaveInterval = setInterval(performAutoSave, 15000); // every 15s
-  // Also save on visibility change
-  document.addEventListener('visibilitychange', () => {
-    if (document.hidden) performAutoSave();
-  });
-  window.addEventListener('beforeunload', performAutoSave);
+  autoSaveInterval = setInterval(performAutoSave, 15000);
+
+  // Remove stale listeners before attaching new ones (prevents stacking)
+  if (_visibilityHandler) document.removeEventListener('visibilitychange', _visibilityHandler);
+  if (_unloadHandler)     window.removeEventListener('beforeunload', _unloadHandler);
+
+  _visibilityHandler = () => { if (document.hidden) performAutoSave(); };
+  _unloadHandler     = performAutoSave;
+
+  document.addEventListener('visibilitychange', _visibilityHandler);
+  window.addEventListener('beforeunload', _unloadHandler);
 }
 
 function performAutoSave() {
@@ -248,8 +335,8 @@ function performAutoSave() {
 function buildDraftData() {
   return {
     workoutId,
-    name:      document.getElementById('workout-name')?.value || '',
-    date:      document.getElementById('workout-date')?.value || todayISO(),
+    name:      document.getElementById('workout-name')?.value  || '',
+    date:      document.getElementById('workout-date')?.value  || todayISO(),
     notes:     document.getElementById('workout-notes')?.value || '',
     exercises: exercises.map(ex => ({
       exercise_id: ex.exercise_id,
@@ -273,22 +360,22 @@ async function loadExerciseList() {
 function searchExercises(query) {
   const dropdown = document.getElementById('exercise-dropdown');
   const q = query ? query.toLowerCase() : '';
-  
+
   let matches = allExercises;
   if (q) {
     if (q.startsWith('cat:')) {
-      const cat = q.replace('cat:','');
+      const cat = q.replace('cat:', '');
       matches = allExercises.filter(e => e.category.toLowerCase() === cat);
     } else {
-      matches = allExercises.filter(e => 
-        e.name.toLowerCase().includes(q) || 
+      matches = allExercises.filter(e =>
+        e.name.toLowerCase().includes(q) ||
         e.category.toLowerCase().includes(q) ||
         (e.muscles && e.muscles.toLowerCase().includes(q))
       );
     }
   }
-  
-  if (!matches.length) { 
+
+  if (!matches.length) {
     dropdown.innerHTML = '<div style="padding:1rem;color:var(--text-muted);text-align:center">No exercises found</div>';
   } else {
     dropdown.innerHTML = matches.slice(0, 50).map(e => `
@@ -308,7 +395,6 @@ function searchExercises(query) {
 function filterCategory(cat) {
   document.getElementById('exercise-search').value = cat ? `cat:${cat}` : '';
   searchExercises(cat ? `cat:${cat}` : '');
-  
   document.querySelectorAll('.cat-btn').forEach(b => {
     b.classList.remove('btn-primary');
     if (b.dataset.cat === cat) b.classList.add('btn-primary');
@@ -316,7 +402,6 @@ function filterCategory(cat) {
 }
 
 function addExercise(exId, exName, setType) {
-  // Check not already added
   if (exercises.find(e => e.exercise_id === exId)) {
     showToast(`${exName} already in this workout`, 'warning');
     document.getElementById('exercise-dropdown').style.display = 'none';
@@ -328,7 +413,7 @@ function addExercise(exId, exName, setType) {
     name:        exName,
     set_type:    setType || 'reps_weight',
     weId:        null,
-    sets:        [{ set_number: 1, weight_kg: null, reps: null, duration_seconds: null, is_warmup: false }],
+    sets: [{ set_number: 1, weight_kg: null, reps: null, duration_seconds: null, is_warmup: false }],
   });
   document.getElementById('exercise-dropdown').style.display = 'none';
   document.getElementById('exercise-search').value = '';
@@ -374,6 +459,47 @@ function updateSetField(exIdx, setIdx, field, value) {
   set[field] = value === '' ? null : (field === 'is_warmup' ? value : parseFloat(value) || null);
   updateSummary();
   performAutoSave();
+
+  // Real-time AI Recommendation trigger
+  if (field === 'weight_kg' || field === 'reps') {
+    debounceAIRecommendation(exIdx);
+  }
+}
+
+let aiDebounceTimers = {};
+function debounceAIRecommendation(exIdx) {
+  clearTimeout(aiDebounceTimers[exIdx]);
+  aiDebounceTimers[exIdx] = setTimeout(() => {
+    fetchNextSetRecommendation(exIdx);
+  }, 2000); // Wait 2 seconds after typing stops
+}
+
+async function fetchNextSetRecommendation(exIdx) {
+  const ex = exercises[exIdx];
+  if (!ex || !ex.exercise_id) return;
+
+  const aiEl = document.getElementById(`ai-rec-${exIdx}`);
+  if (aiEl) {
+    aiEl.innerHTML = `<span class="spinner" style="width:12px;height:12px;border-width:2px;border-top-color:var(--violet-l)"></span> AI analyzing current sets...`;
+    aiEl.style.display = 'flex';
+  }
+
+  try {
+    const res = await apiFetch(`/api/ai/analyze/${ex.exercise_id}`, {
+      method: 'POST',
+      body: { current_sets: ex.sets.filter(s => s.weight_kg != null && s.reps != null) }
+    }, false);
+
+    if (res && !res._error && res.next_reps) {
+      const w = res.next_weight ? `${res.next_weight}kg × ` : '';
+      if (aiEl) {
+        aiEl.innerHTML = `🤖 <strong>AI Suggests:</strong> ${w}${res.next_reps} reps for next set`;
+        aiEl.title = res.progression_note || '';
+      }
+    }
+  } catch (e) {
+    console.error('AI analysis error:', e);
+  }
 }
 
 // ── Render ────────────────────────────────────────────────────
@@ -414,17 +540,45 @@ function renderExerciseBlock(ex, exIdx) {
                onchange="updateSetField(${exIdx},${sIdx},'duration_seconds',this.value)"
                oninput="updateSetField(${exIdx},${sIdx},'duration_seconds',this.value)">
       ` : ''}
-      <input type="number" class="set-input rpe-input" placeholder="RPE" min="1" max="10" step="0.5"
-             value="${s.rpe != null ? s.rpe : ''}"
-             onchange="updateSetField(${exIdx},${sIdx},'rpe',this.value)"
-             oninput="updateSetField(${exIdx},${sIdx},'rpe',this.value)">
-       <label class="warmup-toggle" title="Warmup set">
-         <input type="checkbox" ${s.is_warmup ? 'checked' : ''} onchange="updateSetField(${exIdx},${sIdx},'is_warmup',this.checked)">
-         <span>W</span>
-       </label>
+      <label class="warmup-toggle" title="Warmup set">
+        <input type="checkbox" ${s.is_warmup ? 'checked' : ''} onchange="updateSetField(${exIdx},${sIdx},'is_warmup',this.checked)">
+        <span>W</span>
+      </label>
       <button class="set-remove" onclick="removeSet(${exIdx},${sIdx})" title="Remove set">✕</button>
     </div>
   `).join('');
+
+  // Intel banner — shows previous session data if available
+  const intel = ex.lastSession;
+  let intelHtml = '';
+  if (intel === undefined) {
+    // Still loading
+    intelHtml = `<div class="intel-banner loading" id="intel-${exIdx}"><span class="intel-spinner"></span> Loading previous stats…</div>`;
+  } else if (intel) {
+    const parts = [];
+    if (intel.best_weight != null && intel.best_weight > 0) parts.push(`${intel.best_weight}kg`);
+    if (intel.best_reps != null && intel.best_reps > 0) parts.push(`${intel.best_reps} reps`);
+    const summary = parts.length ? parts.join(' × ') : 'Bodyweight';
+    const dateStr = intel.workout_date ? ` · ${intel.workout_date}` : '';
+    intelHtml = `
+      <div class="intel-banner" id="intel-${exIdx}">
+        <span class="intel-icon">📊</span>
+        <div class="intel-content">
+          <div class="intel-label">Last session${dateStr}</div>
+          <div class="intel-value">${summary}</div>
+          ${intel.sets.length > 1 ? `<div class="intel-sets">${intel.sets.map(s => {
+            const p = [];
+            if (s.weight_kg != null) p.push(s.weight_kg+'kg');
+            if (s.reps != null) p.push(s.reps+' reps');
+            if (s.duration_seconds != null) p.push(s.duration_seconds+'s');
+            return `<span class="intel-set-pill">Set ${s.set_number}: ${p.join(' × ')}</span>`;
+          }).join('')}</div>` : ''}
+        </div>
+      </div>`;
+  } else {
+    // null = loaded, no data
+    intelHtml = `<div class="intel-banner intel-empty" id="intel-${exIdx}"><span class="intel-icon">💡</span> No previous data for this exercise yet.</div>`;
+  }
 
   return `
     <div class="exercise-block" id="ex-block-${exIdx}">
@@ -433,20 +587,18 @@ function renderExerciseBlock(ex, exIdx) {
         <div class="exercise-block-name">${escHtml(ex.name)}</div>
         <button class="btn btn-ghost btn-sm" onclick="removeExercise(${exIdx})" style="color:var(--text-xmuted);margin-left:auto">✕</button>
       </div>
-
+      ${intelHtml}
       <div class="sets-table">
         <div class="sets-table-header">
           <div class="set-num-header">Set</div>
           ${(isRW || isTW) ? '<div class="set-header">Weight (kg)</div>' : ''}
           ${(isRW || isRO) ? '<div class="set-header">Reps</div>' : ''}
           ${(isTime || isTW) ? '<div class="set-header">Seconds</div>' : ''}
-          <div class="set-header">RPE</div>
           <div class="set-header">W</div>
           <div></div>
         </div>
         <div id="sets-${exIdx}">${setRows}</div>
       </div>
-
       <div class="exercise-block-footer">
         <button class="btn btn-ghost btn-sm" onclick="addSet(${exIdx})">+ Add Set</button>
         <div style="font-size:.75rem;color:var(--text-muted)" id="ex-vol-${exIdx}"></div>
@@ -471,16 +623,47 @@ function updateSummary() {
   if (volEl) volEl.textContent = Math.round(totalVol);
 }
 
+// ── Finish button state ───────────────────────────────────────
+
+function setFinishButtonsState(saving) {
+  // Target both the header button and the summary bar button
+  const btns = [
+    document.getElementById('finish-btn'),
+    document.getElementById('summary-finish-btn'),
+  ].filter(Boolean);
+
+  btns.forEach(btn => {
+    if (saving) {
+      btn.disabled = true;
+      if (!btn.dataset.originalText) btn.dataset.originalText = btn.textContent;
+      btn.innerHTML = `<span style="display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,.4);border-top-color:#fff;border-radius:50%;animation:spin 0.7s linear infinite;vertical-align:middle;margin-right:6px"></span> Saving…`;
+    } else {
+      btn.disabled = false;
+      btn.textContent = btn.dataset.originalText || '✓ Finish';
+    }
+  });
+}
+
+// Inject spinner animation once
+if (!document.getElementById('spin-style')) {
+  const s = document.createElement('style');
+  s.id = 'spin-style';
+  s.textContent = '@keyframes spin{to{transform:rotate(360deg)}}';
+  document.head.appendChild(s);
+}
+
 // ── Finish Workout ────────────────────────────────────────────
 
 async function finishWorkout() {
+  // Prevent double-submit
+  if (isSaving) return;
   if (!exercises.length) {
     showToast('Add at least one exercise before finishing', 'warning');
     return;
   }
 
-  const finishBtn = document.getElementById('finish-btn');
-  if (finishBtn) { finishBtn.textContent = 'Saving...'; finishBtn.disabled = true; }
+  isSaving = true;
+  setFinishButtonsState(true);
 
   const name     = document.getElementById('workout-name')?.value?.trim() || 'Workout';
   const date     = document.getElementById('workout-date')?.value || todayISO();
@@ -488,15 +671,16 @@ async function finishWorkout() {
   const duration = workoutStart ? Math.floor((Date.now() - workoutStart) / 60000) : 0;
 
   try {
-    // Create or get workout
+    // ── Phase 1: Create or update the workout record ──────────
     if (!workoutId) {
       const created = await apiFetch('/api/workouts', {
         method: 'POST',
         body: { name, workout_date: date, notes, duration_minutes: duration, is_draft: 0 },
       }, false);
-      if (created._error) throw new Error('Failed to create workout');
+      if (created._error) throw new Error(created.message || 'Could not create workout');
       workoutId = created.id;
     } else {
+      // Best-effort update — ignore failure, workout already exists
       await apiFetch(`/api/workouts/${workoutId}`, {
         method: 'PATCH',
         body: { name, workout_date: date, notes, duration_minutes: duration,
@@ -504,21 +688,22 @@ async function finishWorkout() {
       }, false);
     }
 
-    // Save all exercises and sets
+    // ── Phase 2: Persist exercises & sets (idempotent) ────────
     for (let i = 0; i < exercises.length; i++) {
       const ex = exercises[i];
+
       if (!ex.weId) {
         const weRes = await apiFetch(`/api/workouts/${workoutId}/exercises`, {
           method: 'POST',
           body: { exercise_id: ex.exercise_id, position: i },
         }, false);
-        if (!weRes._error) ex.weId = weRes.id;
+        if (weRes._error) throw new Error(`Could not save exercise "${ex.name}"`);
+        ex.weId = weRes.id;
       }
-      if (!ex.weId) continue;
 
       for (const s of ex.sets) {
-        if (s.id) continue; // already saved (for resumed workouts)
-        await apiFetch(`/api/workouts/exercises/${ex.weId}/sets`, {
+        if (s.id) continue;  // already persisted — skip
+        const setRes = await apiFetch(`/api/workouts/exercises/${ex.weId}/sets`, {
           method: 'POST',
           body: {
             set_number:       s.set_number,
@@ -526,37 +711,43 @@ async function finishWorkout() {
             reps:             s.reps,
             duration_seconds: s.duration_seconds,
             is_warmup:        s.is_warmup ? 1 : 0,
-            rpe:              s.rpe,
+            rpe:              s.rpe || null,
           },
         }, false);
+        if (!setRes._error) s.id = setRes.id; // mark persisted for idempotency
       }
     }
 
-    // Finish the workout and compute metrics
-    const finalRes = await apiFetch(`/api/workouts/${workoutId}/finish`, {
-      method: 'POST',
-      body: { 
-        duration_minutes: duration,
-        notes: notes 
-      },
-    }, false);
+    // ── Phase 3: Finalize metrics (best-effort — never blocks) ─
+    // Even if /finish fails (e.g. a model bug), the workout IS saved.
+    // We do NOT retry or show an error for this step.
+    try {
+      await apiFetch(`/api/workouts/${workoutId}/finish`, {
+        method: 'POST',
+        body: { duration_minutes: duration, notes },
+      }, false);
+    } catch (_) {
+      // Metrics computation failed — workout data is still safe
+      console.warn('[finishWorkout] /finish endpoint failed — data still saved');
+    }
 
-    if (finalRes._error) throw new Error('Failed to finalize workout');
+    // ── Phase 4: Background PR computation ────────────────────
+    apiFetch('/api/athletes/prs/compute', { method: 'POST' }, false).catch(() => {});
 
-    // Compute PRs
-    await apiFetch('/api/athletes/prs/compute', { method:'POST' }, false);
-
-    // Clear draft
+    // ── Phase 5: Success ──────────────────────────────────────
     clearDraft('active_workout');
     clearInterval(timerInterval);
     clearInterval(autoSaveInterval);
 
-    showToast('Workout saved! Great session! 💪', 'success');
-    setTimeout(() => { window.location.href = `/workout-detail.html?id=${workoutId}`; }, 800);
+    showToast('✅ Workout saved! Great session! 💪', 'success');
+    setTimeout(() => { window.location.href = `/workout-detail.html?id=${workoutId}`; }, 900);
 
   } catch (err) {
-    if (finishBtn) { finishBtn.textContent = '✓ Finish'; finishBtn.disabled = false; }
-    showToast('Failed to save workout. Try again.', 'error');
+    // Only reaches here if Phase 1 or 2 genuinely failed
+    console.error('[finishWorkout] Error:', err.message);
+    isSaving = false;
+    setFinishButtonsState(false);
+    showToast(`❌ ${err.message || 'Failed to save workout'}. Please try again.`, 'error');
   }
 }
 
@@ -576,7 +767,7 @@ function discardWorkout() {
 // ── Close dropdown on outside click ──────────────────────────
 
 document.addEventListener('click', e => {
-  const dd = document.getElementById('exercise-dropdown');
+  const dd     = document.getElementById('exercise-dropdown');
   const search = document.getElementById('exercise-search');
   if (dd && search && !search.contains(e.target) && !dd.contains(e.target)) {
     dd.style.display = 'none';

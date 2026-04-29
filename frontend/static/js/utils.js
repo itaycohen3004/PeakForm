@@ -170,13 +170,6 @@ async function renderSidebar() {
   if (!user) return;
   const initials = (user.display_name || user.email || 'P').substring(0, 2).toUpperCase();
 
-  // Get unread notification count
-  let unreadCount = 0;
-  try {
-    const r = await apiFetch('/api/notifications/unread-count');
-    unreadCount = r?.count || 0;
-  } catch { }
-
   sidebar.innerHTML = `
     <a href="/dashboard.html" class="sidebar-logo">
       <img src="/static/assets/logo.png" alt="PeakForm" onerror="this.style.display='none'" style="width:32px;height:32px;border-radius:8px;object-fit:cover">
@@ -186,7 +179,6 @@ async function renderSidebar() {
       <div class="nav-section-label">Training</div>
       <a href="/dashboard.html" class="nav-item" data-page="dashboard">
         <span class="nav-icon">📊</span> Dashboard
-        ${unreadCount > 0 ? `<span class="nav-badge">${unreadCount}</span>` : ''}
       </a>
       <a href="/log-workout.html" class="nav-item" data-page="log-workout">
         <span class="nav-icon">💪</span> Log Workout
@@ -194,21 +186,12 @@ async function renderSidebar() {
       <a href="/workout-history.html" class="nav-item" data-page="workout-history">
         <span class="nav-icon">📅</span> History
       </a>
-      <a href="/templates.html" class="nav-item" data-page="templates">
-        <span class="nav-icon">📋</span> Templates
-      </a>
       <a href="/exercise-library.html" class="nav-item" data-page="exercise-library">
         <span class="nav-icon">🔍</span> Exercises
       </a>
       <div class="nav-section-label">Analytics</div>
-      <a href="/progress.html" class="nav-item" data-page="progress">
-        <span class="nav-icon">📈</span> Progress
-      </a>
       <a href="/body-weight.html" class="nav-item" data-page="body-weight">
         <span class="nav-icon">⚖️</span> Body Weight
-      </a>
-      <a href="/pr-tracker.html" class="nav-item" data-page="pr-tracker">
-        <span class="nav-icon">🏅</span> PR Tracker
       </a>
       <a href="/achievements.html" class="nav-item" data-page="achievements">
         <span class="nav-icon">🏆</span> Goals & Achievements
@@ -224,9 +207,18 @@ async function renderSidebar() {
         <span class="nav-icon">🤖</span> AI Coach
       </a>
       <div class="nav-section-label">Account</div>
+      <a href="/templates.html" class="nav-item" data-page="templates">
+        <span class="nav-icon">📋</span> Templates
+      </a>
       <a href="/profile.html" class="nav-item" data-page="profile">
         <span class="nav-icon">👤</span> Profile
       </a>
+      ${user.role === 'admin' ? `
+      <div class="nav-section-label">Admin</div>
+      <a href="/admin.html" class="nav-item" data-page="admin" style="color:var(--amber)">
+        <span class="nav-icon">🛡️</span> Admin Panel
+      </a>
+      ` : ''}
     </nav>
     <div class="sidebar-footer">
       <div class="sidebar-user">

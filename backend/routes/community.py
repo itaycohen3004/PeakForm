@@ -1,7 +1,9 @@
 """
 Community routes — posts, comments, likes feed.
 """
+import os
 from flask import Blueprint, request, jsonify, g
+from werkzeug.utils import secure_filename
 from backend.middleware.auth import require_auth
 from backend.models.community import (
     create_post, get_feed, delete_post,
@@ -40,8 +42,38 @@ def create():
     if post_type not in valid_types:
         post_type = "update"
 
-    post_id = create_post(g.user_id, content, post_type)
+    media_path = data.get("media_path")  # optional pre-uploaded path
+    post_id = create_post(g.user_id, content, post_type, media_path)
     return jsonify({"id": post_id, "message": "Post created."}), 201
+
+
+@community_bp.route("/posts/with-photo", methods=["POST"])
+@require_auth
+def create_with_photo():
+    """Create a community post with an optional photo attachment (multipart)."""
+    content   = (request.form.get("content") or "").strip()
+    post_type = request.form.get("post_type", "achievement")
+    valid_types = ["update","achievement","progress_photo","question","tip"]
+    if post_type not in valid_types:
+        post_type = "achievement"
+
+    if not content:
+        return jsonify({"error": "content required"}), 400
+
+    media_path = None
+    if "photo" in request.files:
+        file = request.files["photo"]
+        if file and file.filename:
+            upload_dir = os.path.join(
+                os.getcwd(), "frontend", "static", "uploads", "community"
+            )
+            os.makedirs(upload_dir, exist_ok=True)
+            filename = secure_filename(f"post_{g.user_id}_{file.filename}")
+            file.save(os.path.join(upload_dir, filename))
+            media_path = f"/static/uploads/community/{filename}"
+
+    post_id = create_post(g.user_id, content, post_type, media_path)
+    return jsonify({"id": post_id, "message": "Post created.", "media_path": media_path}), 201
 
 
 @community_bp.route("/posts/<int:post_id>", methods=["DELETE"])

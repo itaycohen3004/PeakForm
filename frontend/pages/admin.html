@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+  <title>Admin Panel — PeakForm</title>
+  <meta name="description" content="PeakForm Administration.">
+  <link rel="icon" href="/static/assets/logo.png">
+  <link rel="stylesheet" href="/static/css/main.css">
+  <link rel="stylesheet" href="/static/css/components.css">
+  <style>
+    .admin-card {
+      background: var(--bg-card);
+      border: 1px solid var(--bg-border);
+      border-radius: var(--radius-lg);
+      padding: var(--space-lg);
+      margin-bottom: var(--space-md);
+    }
+    .pending-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 12px;
+      border-bottom: 1px solid rgba(255,255,255,0.05);
+    }
+    .pending-row:last-child { border-bottom: none; }
+    .pending-name { font-weight: 700; font-size: 0.95rem; }
+    .pending-meta { font-size: 0.75rem; color: var(--text-muted); display: flex; gap: 8px; align-items: center; margin-top: 4px; }
+    .btn-approve { background: rgba(16,185,129,0.15); color: var(--green); border-color: rgba(16,185,129,0.3); }
+    .btn-approve:hover { background: var(--green); color: white; }
+    .btn-reject { background: rgba(239,68,68,0.15); color: var(--red); border-color: rgba(239,68,68,0.3); }
+    .btn-reject:hover { background: var(--red); color: white; }
+  </style>
+</head>
+<body class="app-layout">
+  <button class="mobile-menu-btn" id="mobile-menu-btn">☰</button>
+  <div class="sidebar-overlay" id="sidebar-overlay"></div>
+  <aside class="sidebar" id="sidebar"></aside>
+
+  <main class="main-content">
+    <div class="page-header mb-xl">
+      <h1>🛡️ Admin Panel</h1>
+      <p>Review and manage platform content.</p>
+    </div>
+
+    <div class="admin-card">
+      <h2 class="mb-md" style="font-size:1.1rem;display:flex;align-items:center;gap:8px">
+        ⏳ Pending Exercises <span id="pending-count" class="badge badge-amber" style="font-size:0.75rem">0</span>
+      </h2>
+      <div id="pending-list"><div class="skeleton skeleton-block"></div></div>
+    </div>
+  </main>
+
+  <div id="toast-container" class="toast-container"></div>
+  <script src="/static/js/utils.js"></script>
+  <script src="/static/js/api.js"></script>
+  <script src="/static/js/admin.js"></script>
+</body>
+</html>

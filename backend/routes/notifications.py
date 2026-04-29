@@ -1,4 +1,6 @@
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, jsonify, request, g
+from backend.middleware.auth import require_auth
+from backend.models.db import get_db
 
 notifications_bp = Blueprint(
     "notifications",
@@ -6,70 +8,49 @@ notifications_bp = Blueprint(
     url_prefix="/api/notifications"
 )
 
-_demo_notifications = []
-
-
-def _get_user_id():
-    auth = request.headers.get("Authorization", "")
-    if auth.startswith("Bearer "):
-        return 1
-    return 1
-
-
 @notifications_bp.route("/", methods=["GET"])
+@require_auth
 def get_notifications():
-    user_id = _get_user_id()
-
-    items = [n for n in _demo_notifications if n["user_id"] == user_id]
-    items.sort(key=lambda x: x["id"], reverse=True)
-
-    return jsonify(items)
-
+    db = get_db()
+    rows = db.execute(
+        "SELECT * FROM notifications WHERE user_id = ? ORDER BY created_at DESC",
+        (g.user_id,)
+    ).fetchall()
+    return jsonify([dict(r) for r in rows])
 
 @notifications_bp.route("/add", methods=["POST"])
+@require_auth
 def add_notification():
-    user_id = _get_user_id()
     data = request.get_json() or {}
-
     title = (data.get("title") or "").strip()
     message = (data.get("message") or "").strip()
 
     if not title:
         return jsonify({"error": "Title required"}), 400
 
-    item = {
-        "id": len(_demo_notifications) + 1,
-        "user_id": user_id,
-        "title": title,
-        "message": message,
-        "is_read": False,
-    }
-
-    _demo_notifications.append(item)
-
-    return jsonify({"success": True, "notification": item})
-
+    db = get_db()
+    db.execute(
+        "INSERT INTO notifications (user_id, title, message) VALUES (?, ?, ?)",
+        (g.user_id, title, message)
+    )
+    db.commit()
+    return jsonify({"success": True})
 
 @notifications_bp.route("/<int:item_id>/read", methods=["POST"])
+@require_auth
 def mark_read(item_id):
-    user_id = _get_user_id()
-
-    for item in _demo_notifications:
-        if item["id"] == item_id and item["user_id"] == user_id:
-            item["is_read"] = True
-            return jsonify({"success": True})
-
-    return jsonify({"error": "Not found"}), 404
-
+    db = get_db()
+    db.execute(
+        "UPDATE notifications SET is_read = 1 WHERE id = ? AND user_id = ?",
+        (item_id, g.user_id)
+    )
+    db.commit()
+    return jsonify({"success": True})
 
 @notifications_bp.route("/clear", methods=["POST"])
+@require_auth
 def clear_all():
-    global _demo_notifications
-    user_id = _get_user_id()
-
-    _demo_notifications = [
-        n for n in _demo_notifications
-        if n["user_id"] != user_id
-    ]
-
+    db = get_db()
+    db.execute("DELETE FROM notifications WHERE user_id = ?", (g.user_id,))
+    db.commit()
     return jsonify({"success": True})

@@ -51,8 +51,8 @@
           <label class="form-label">Goal Type</label>
           <select id="goal-type" class="form-control" onchange="onGoalTypeChange(this.value)">
             <option value="exercise_weight">🏋️ Reach target lift weight</option>
-            <option value="exercise_reps">🔁 Reach target reps</option>
-            <option value="exercise_1rm">💪 Reach target 1RM</option>
+            <option value="exercise_reps">🔢 Reach target reps</option>
+            <option value="exercise_1rm">💥 Reach target 1RM</option>
             <option value="body_weight_target">⚖️ Reach target body weight</option>
             <option value="workout_count">📊 Complete N workouts</option>
             <option value="weekly_frequency">📅 Train N days/week</option>
@@ -99,6 +99,50 @@
     </div>
   </div>
 
+  <!-- Achievement Share Modal -->
+  <div id="share-achievement-modal" class="modal" style="display:none" onclick="if(event.target===this)closeModal('share-achievement-modal')">
+    <div class="modal-box" style="max-width:540px;max-height:90vh;overflow-y:auto">
+      <div class="modal-header">
+        <span class="modal-title">🎉 Share Achievement</span>
+        <button class="modal-close" onclick="closeModal('share-achievement-modal')">✕</button>
+      </div>
+      <div style="margin-bottom:var(--space-lg)">
+        <div style="font-size:.7rem;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted);margin-bottom:8px">Preview — how it appears on the Feed</div>
+        <div id="share-card-preview" style="background:var(--bg-card);border:1px solid var(--bg-border);border-radius:12px;padding:16px;border-left:4px solid var(--amber)">
+          <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px">
+            <div style="font-size:2rem">🏆</div>
+            <div>
+              <div id="preview-title" style="font-weight:900;font-size:1rem;color:var(--text)"></div>
+              <div id="preview-meta" style="font-size:.75rem;color:var(--text-muted);margin-top:2px"></div>
+            </div>
+          </div>
+          <div id="preview-value" style="font-size:1.3rem;font-weight:900;color:var(--amber);margin-bottom:4px"></div>
+          <div id="preview-caption-display" style="font-size:.88rem;color:var(--text-secondary);display:none;margin-top:8px;padding-top:8px;border-top:1px solid var(--bg-border)"></div>
+          <div id="preview-photo-display" style="display:none;margin-top:10px"><img id="preview-photo-img" src="" style="width:100%;border-radius:8px;object-fit:cover;max-height:180px"></div>
+        </div>
+      </div>
+      <div class="form-group mb-md">
+        <label class="form-label">Your Caption <span style="color:var(--text-muted);font-weight:400">(optional)</span></label>
+        <textarea id="share-caption" class="form-control" rows="3" placeholder="Share how you feel about this achievement..." style="resize:vertical" oninput="updateSharePreview()"></textarea>
+      </div>
+      <div class="form-group mb-lg">
+        <label class="form-label">Attach a Photo <span style="color:var(--text-muted);font-weight:400">(optional)</span></label>
+        <div id="photo-drop-area" style="border:2px dashed var(--bg-border);border-radius:10px;padding:20px;text-align:center;cursor:pointer;transition:border-color .2s"
+             onclick="document.getElementById('share-photo-input').click()"
+             ondragover="event.preventDefault();this.style.borderColor='var(--violet)'"
+             ondragleave="this.style.borderColor='var(--bg-border)'"
+             ondrop="handlePhotoDrop(event)">
+          <div id="photo-drop-label"><div style="font-size:1.8rem;margin-bottom:6px">📷</div><div style="font-size:.85rem;color:var(--text-muted)">Click to upload or drag &amp; drop</div><div style="font-size:.72rem;color:var(--text-xmuted);margin-top:4px">JPG, PNG, WEBP</div></div>
+          <div id="photo-selected-label" style="display:none;font-size:.85rem;color:var(--green-l);font-weight:600"></div>
+        </div>
+        <input type="file" id="share-photo-input" accept="image/*" style="display:none" onchange="handlePhotoSelect(this)">
+        <button id="remove-photo-btn" class="btn btn-ghost btn-sm" style="display:none;margin-top:6px;color:var(--text-muted)" onclick="removeSharePhoto()">✕ Remove photo</button>
+      </div>
+      <button class="btn btn-primary btn-full" id="share-feed-btn" onclick="shareToFeedFromModal()" style="font-size:.95rem;padding:13px">📢 Share to Community Feed</button>
+      <div style="font-size:.72rem;color:var(--text-muted);text-align:center;margin-top:8px">Visible to all PeakForm community members.</div>
+    </div>
+  </div>
+
   <div id="toast-container" class="toast-container"></div>
   <script src="/static/js/utils.js"></script>
   <script src="/static/js/api.js"></script>
@@ -116,8 +160,11 @@
     });
 
     async function loadGoals() {
-      const data = await apiFetch('/api/goals?include_completed=true');
-      if (data._error) return;
+      const data = await apiFetch('/api/goals?include_completed=true', {}, false);
+      if (data._error) {
+        document.getElementById('goals-grid').innerHTML = `<div class="empty-state"><div class="empty-icon">⚠️</div><p>Could not load goals. Please refresh.</p></div>`;
+        return;
+      }
       allGoals = data;
       renderTab(currentTab);
     }
@@ -157,9 +204,16 @@
       grid.innerHTML = `<div class="goals-grid">${active.map(g => renderGoalCard(g)).join('')}</div>`;
     }
 
+    // Goal data map for safe share lookups
+    let _goalMap = {};
+
     function renderAchievements() {
       const grid = document.getElementById('achievements-grid');
       const done = allGoals.filter(g => g.is_completed);
+      // Rebuild goal map
+      _goalMap = {};
+      allGoals.forEach(g => { _goalMap[g.id] = g; });
+
       if (!done.length) {
         grid.innerHTML = `<div class="empty-state">
           <div class="empty-icon">🏆</div>
@@ -185,7 +239,7 @@
             </div>
             <div style="display:flex;gap:6px;flex-shrink:0">
               <button class="btn btn-ghost btn-sm" onclick="editProgress(${g.id}, ${g.current_value})" title="Update progress">✏️</button>
-              <button class="btn btn-ghost btn-sm" onclick="deleteGoal(${g.id})" title="Delete goal" style="color:var(--text-xmuted)">🗑</button>
+              <button class="btn btn-ghost btn-sm" onclick="deleteGoal(${g.id})" title="Delete goal" style="color:var(--text-xmuted)">🗑️</button>
             </div>
           </div>
           <div class="goal-progress">
@@ -206,6 +260,7 @@
     }
 
     function renderAchievementCard(g) {
+      const exName = g.exercise_name ? escHtml(g.exercise_name) : '';
       return `
         <div class="achievement-card" onclick="launchConfetti(2000)">
           <div class="achievement-icon">🏆</div>
@@ -216,14 +271,25 @@
               <span class="text-muted font-xs">Achieved ${formatDate(g.completed_at)}</span>
             </div>
             <div class="achievement-value">${g.target_value} ${g.unit||''}</div>
+            ${exName ? `<div style="font-size:.8rem;color:var(--text-muted);margin-top:4px">${exName}</div>` : ''}
             ${g.photo_path ? `<img src="${g.photo_path}" style="width:100%;border-radius:8px;margin-top:8px;object-fit:cover;max-height:160px">` : ''}
           </div>
           <div style="display:flex;gap:6px;margin-top:var(--space-md);flex-wrap:wrap">
             <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();uploadPhoto(${g.id})">📷 Photo</button>
-            <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();shareAchievement(${g.id},'${escHtml(g.title)}')">📤 Share</button>
+            <button class="btn btn-primary btn-sm" data-gid="${g.id}" onclick="event.stopPropagation();shareAchievementById(${g.id})" style="display:flex;align-items:center;gap:4px;">
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"></circle><circle cx="6" cy="12" r="3"></circle><circle cx="18" cy="19" r="3"></circle><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line></svg>
+              Share
+            </button>
           </div>
         </div>
       `;
+    }
+
+    // Safe share: lookup goal from map by id
+    function shareAchievementById(id) {
+      const g = _goalMap[id];
+      if (!g) return;
+      shareAchievement(g.id, g.title, g.target_value, g.unit || '', g.exercise_name || '');
     }
 
     async function createGoal(e) {
@@ -334,14 +400,139 @@
         const fd = new FormData();
         fd.append('photo', file);
         const res = await apiUpload(`/api/goals/${goalId}/photo`, fd);
-        if (!res._error) { showToast('Photo uploaded! 📸', 'success'); await loadGoals(); }
+        if (!res._error) { showToast('Photo uploaded! 📷', 'success'); await loadGoals(); }
       };
       input.click();
     }
 
-    function shareAchievement(id, title) {
-      showToast(`Share card for "${title}" — coming soon`, 'info');
+    // ── Share Achievement ──────────────────────────────────────
+    let _shareGoalData = null;   // goal object currently being shared
+    let _sharePhotoFile = null;  // selected photo File object
+
+    function shareAchievement(id, title, value, unit, exerciseName) {
+      const g = _goalMap[id];
+      _shareGoalData = g || { id, title, target_value: value, unit, exercise_name: exerciseName };
+      _sharePhotoFile = null;
+
+      // Reset UI
+      document.getElementById('share-caption').value = '';
+      document.getElementById('share-photo-input').value = '';
+      document.getElementById('photo-drop-label').style.display = 'block';
+      document.getElementById('photo-selected-label').style.display = 'none';
+      document.getElementById('remove-photo-btn').style.display = 'none';
+      document.getElementById('photo-drop-area').style.borderColor = 'var(--bg-border)';
+      document.getElementById('preview-photo-display').style.display = 'none';
+      document.getElementById('preview-photo-img').src = '';
+      document.getElementById('preview-caption-display').style.display = 'none';
+      document.getElementById('share-feed-btn').textContent = '📢 Share to Community Feed';
+      document.getElementById('share-feed-btn').disabled = false;
+
+      // Populate preview
+      document.getElementById('preview-title').textContent = title;
+      document.getElementById('preview-value').textContent = value ? `${value} ${unit || ''}` : '';
+      document.getElementById('preview-meta').textContent =
+        (exerciseName ? exerciseName + ' \u00B7 ' : '') +
+        'Completed ' + new Date().toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'});
+
+      openModal('share-achievement-modal');
     }
+
+    function updateSharePreview() {
+      const caption = document.getElementById('share-caption').value;
+      const el = document.getElementById('preview-caption-display');
+      if (caption.trim()) {
+        el.textContent = caption;
+        el.style.display = 'block';
+      } else {
+        el.style.display = 'none';
+      }
+    }
+
+    function handlePhotoSelect(input) {
+      const file = input.files[0];
+      if (!file) return;
+      _sharePhotoFile = file;
+      document.getElementById('photo-drop-label').style.display = 'none';
+      document.getElementById('photo-selected-label').textContent = '\u2713 ' + file.name;
+      document.getElementById('photo-selected-label').style.display = 'block';
+      document.getElementById('remove-photo-btn').style.display = 'inline-flex';
+      // Show preview
+      const reader = new FileReader();
+      reader.onload = e => {
+        document.getElementById('preview-photo-img').src = e.target.result;
+        document.getElementById('preview-photo-display').style.display = 'block';
+      };
+      reader.readAsDataURL(file);
+    }
+
+    function handlePhotoDrop(event) {
+      event.preventDefault();
+      document.getElementById('photo-drop-area').style.borderColor = 'var(--bg-border)';
+      const file = event.dataTransfer.files[0];
+      if (!file || !file.type.startsWith('image/')) return;
+      // Programmatically set
+      const dt = new DataTransfer();
+      dt.items.add(file);
+      const input = document.getElementById('share-photo-input');
+      input.files = dt.files;
+      handlePhotoSelect(input);
+    }
+
+    function removeSharePhoto() {
+      _sharePhotoFile = null;
+      document.getElementById('share-photo-input').value = '';
+      document.getElementById('photo-drop-label').style.display = 'block';
+      document.getElementById('photo-selected-label').style.display = 'none';
+      document.getElementById('remove-photo-btn').style.display = 'none';
+      document.getElementById('preview-photo-display').style.display = 'none';
+      document.getElementById('preview-photo-img').src = '';
+    }
+
+    async function shareToFeedFromModal() {
+      if (!_shareGoalData) return;
+      const caption  = document.getElementById('share-caption').value.trim();
+      const g        = _shareGoalData;
+      const btn      = document.getElementById('share-feed-btn');
+
+      // Build post content text that looks like an achievement card
+      const lines = [
+        `🏆 Achievement Unlocked: ${g.title}`,
+        g.exercise_name ? `Exercise: ${g.exercise_name}` : '',
+        (g.target_value != null) ? `Result: ${g.target_value} ${g.unit || ''}` : '',
+        caption ? `\n${caption}` : '',
+      ].filter(Boolean);
+      const content = lines.join('\n');
+
+      btn.disabled = true;
+      btn.textContent = 'Posting...';
+
+      let res;
+      if (_sharePhotoFile) {
+        // Multipart upload
+        const fd = new FormData();
+        fd.append('content', content);
+        fd.append('post_type', 'achievement');
+        fd.append('photo', _sharePhotoFile);
+        res = await apiUpload('/api/community/posts/with-photo', fd);
+      } else {
+        res = await apiFetch('/api/community/posts', {
+          method: 'POST',
+          body: { content, post_type: 'achievement' },
+        }, false);
+      }
+
+      btn.disabled = false;
+      btn.textContent = '📢 Share to Community Feed';
+
+      if (res && !res._error) {
+        closeModal('share-achievement-modal');
+        launchConfetti(2500);
+        showToast('Achievement shared to the community feed! 🎉', 'success');
+      } else {
+        showToast('Failed to share — please try again', 'error');
+      }
+    }
+
   </script>
   <style>
     .goals-grid {

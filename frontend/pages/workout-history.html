@@ -2,11 +2,10 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
-  <title>Workout History — Reprise</title>
+  <title>Workout History — PeakForm</title>
   <link rel="icon" href="/static/assets/logo.png">
   <link rel="stylesheet" href="/static/css/main.css">
   <link rel="stylesheet" href="/static/css/components.css">
-  <link rel="stylesheet" href="/static/css/workout.css">
 </head>
 <body class="app-layout">
   <button class="mobile-menu-btn" id="mobile-menu-btn">☰</button>
@@ -15,238 +14,220 @@
 
   <main class="main-content">
     <div class="page-header flex-between">
-      <div><h1>Workout Log</h1><p>All your sessions in one place</p></div>
+      <div><h1>Workout History</h1><p>All your sessions in one place</p></div>
       <a href="/log-workout.html" class="btn btn-primary">+ New Workout</a>
     </div>
 
-    <!-- Tabs -->
-    <div style="display:flex;gap:4px;margin-bottom:var(--space-xl);border-bottom:1px solid var(--bg-border)">
-      <button class="tab-btn active" id="tab-history" onclick="switchTab('history')">📅 Calendar History</button>
-      <button class="tab-btn" id="tab-diary" onclick="switchTab('diary')">📓 Full Diary</button>
-    </div>
-
-    <!-- ═══ TAB: History (Calendar + Completed) ═══ -->
-    <div id="panel-history">
-      <div class="grid-2 mb-xl">
-        <!-- Calendar -->
-        <div class="card">
-          <div class="card-header mb-lg">
-            <h3 class="card-title" id="cal-month-label">Month</h3>
-            <div style="display:flex;gap:4px">
-              <button class="btn btn-ghost btn-icon" onclick="changeMonth(-1)">‹</button>
-              <button class="btn btn-ghost btn-icon" onclick="changeMonth(1)">›</button>
-            </div>
-          </div>
-          <div class="calendar-grid" id="cal-day-headers"></div>
-          <div class="calendar-grid" id="cal-grid" style="margin-top:4px"></div>
+    <div class="card">
+      <div class="card-header mb-lg">
+        <div>
+          <h3 class="card-title">Full Diary</h3>
+          <div style="font-size:.78rem;color:var(--text-muted);margin-top:2px">Every session — completed &amp; in-progress</div>
         </div>
-
-        <!-- Selected day -->
-        <div class="card">
-          <h3 class="card-title mb-lg" id="selected-day-label">Select a day</h3>
-          <div id="day-workouts">
-            <div class="empty-state"><div class="empty-icon">📅</div><p>Click a calendar day</p></div>
-          </div>
-        </div>
+        <span class="badge badge-violet" id="diary-count">—</span>
       </div>
-
-      <!-- Completed sessions table -->
-      <div class="card">
-        <div class="card-header mb-lg">
-          <h3 class="card-title">Completed Sessions</h3>
-          <span class="badge badge-violet" id="history-count">—</span>
-        </div>
-        <div id="completed-workouts"><div class="skeleton skeleton-block"></div></div>
-      </div>
-    </div>
-
-    <!-- ═══ TAB: Diary (All sessions) ═══ -->
-    <div id="panel-diary" style="display:none">
-      <div class="card">
-        <div class="card-header mb-lg">
-          <div>
-            <h3 class="card-title">Full Workout Diary</h3>
-            <div style="font-size:.78rem;color:var(--text-muted);margin-top:2px">Every session — completed &amp; in-progress</div>
-          </div>
-          <span class="badge badge-violet" id="diary-count">—</span>
-        </div>
-        <div id="diary-list"><div class="skeleton skeleton-block"></div></div>
-      </div>
+      <div id="diary-list"><div class="skeleton skeleton-block"></div></div>
     </div>
   </main>
+
+  <!-- Share Workout Modal -->
+  <div id="share-workout-modal" class="modal" style="display:none" onclick="if(event.target===this)closeModal('share-workout-modal')">
+    <div class="modal-box" style="max-width:540px">
+      <div class="modal-header">
+        <span class="modal-title">📢 Share Workout</span>
+        <button class="modal-close" onclick="closeModal('share-workout-modal')">✕</button>
+      </div>
+      
+      <div class="mb-md">
+        <label class="form-label">Add a photo (optional)</label>
+        <div id="share-photo-preview" style="display:none;margin-bottom:12px;position:relative">
+          <img src="" id="share-photo-img" style="width:100%;max-height:240px;object-fit:cover;border-radius:var(--radius-md)">
+          <button class="btn btn-sm btn-ghost" style="position:absolute;top:8px;right:8px;background:rgba(0,0,0,0.5)" onclick="removeSharePhoto()">✕</button>
+        </div>
+        <input type="file" id="share-photo-input" accept="image/*" class="form-control" onchange="handleSharePhoto(event)">
+      </div>
+
+      <div class="form-group mb-lg">
+        <label class="form-label">Add a caption</label>
+        <textarea id="share-caption" class="form-control" rows="3" placeholder="Tell the community how it went..."></textarea>
+      </div>
+
+      <div style="font-size:0.8rem;color:var(--text-muted);margin-bottom:var(--space-md);padding:10px;background:var(--bg-surface);border-radius:4px">
+        <em>Note: Your workout summary (exercises, sets, volume) will automatically be attached to this post.</em>
+      </div>
+      
+      <button class="btn btn-primary btn-full" id="btn-submit-share" onclick="submitShareWorkout()">📢 Share to Feed</button>
+    </div>
+  </div>
 
   <div id="toast-container" class="toast-container"></div>
   <script src="/static/js/utils.js"></script>
   <script src="/static/js/api.js"></script>
   <script>
-    const style = document.createElement('style');
-    style.textContent = `
-      .tab-btn {
-        background: none; border: none; padding: 10px 18px; cursor: pointer;
-        color: var(--text-muted); font-size: .88rem; font-weight: 600;
-        border-bottom: 3px solid transparent; margin-bottom: -1px; transition: .15s;
-      }
-      .tab-btn.active { color: var(--violet-l); border-bottom-color: var(--violet); }
-      .tab-btn:hover { color: var(--text-primary); }
-    `;
-    document.head.appendChild(style);
-
-    let currentYear, currentMonth, calData = {}, allWorkouts = [];
-
     onReady(async () => {
       requireAuth(); renderSidebar(); initMobileSidebar();
-      const now = new Date();
-      currentYear  = now.getFullYear();
-      currentMonth = now.getMonth() + 1;
-      await Promise.all([loadCalendar(), loadAllWorkouts()]);
+      await loadAllWorkouts();
     });
 
-    function switchTab(tab) {
-      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-      document.getElementById('tab-' + tab).classList.add('active');
-      document.getElementById('panel-history').style.display = tab === 'history' ? '' : 'none';
-      document.getElementById('panel-diary').style.display   = tab === 'diary'   ? '' : 'none';
-    }
-
-    // ── Calendar ──
-    async function loadCalendar() {
-      const data = await apiFetch(`/api/workouts/calendar?year=${currentYear}&month=${currentMonth}`, {}, false);
-      calData = {};
-      if (!data._error) data.forEach(d => calData[d.workout_date] = d.count);
-      renderCalendar();
-    }
-
-    function renderCalendar() {
-      const days = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
-      document.getElementById('cal-day-headers').innerHTML = days.map(d =>
-        `<div class="calendar-day-header">${d}</div>`).join('');
-      const names = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-      document.getElementById('cal-month-label').textContent = `${names[currentMonth-1]} ${currentYear}`;
-      const firstDOW = new Date(currentYear, currentMonth-1, 1).getDay();
-      const daysInMonth = new Date(currentYear, currentMonth, 0).getDate();
-      const todayStr = todayISO();
-      let html = '';
-      for (let i = 0; i < firstDOW; i++) html += `<div class="calendar-day empty"></div>`;
-      for (let d = 1; d <= daysInMonth; d++) {
-        const ds = `${currentYear}-${String(currentMonth).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
-        const hasW = calData[ds], isTd = ds === todayStr;
-        html += `<div class="calendar-day ${hasW?'has-workout':''} ${isTd?'today':''}" onclick="selectDay('${ds}')">${d}</div>`;
-      }
-      document.getElementById('cal-grid').innerHTML = html;
-    }
-
-    async function changeMonth(dir) {
-      currentMonth += dir;
-      if (currentMonth > 12) { currentMonth=1; currentYear++; }
-      if (currentMonth < 1)  { currentMonth=12; currentYear--; }
-      await loadCalendar();
-    }
-
-    function selectDay(ds) {
-      document.querySelectorAll('.calendar-day').forEach(el => el.classList.remove('selected'));
-      event.currentTarget.classList.add('selected');
-      document.getElementById('selected-day-label').textContent = formatDate(ds);
-      const dayW = allWorkouts.filter(w => w.workout_date === ds);
-      const el = document.getElementById('day-workouts');
-      el.innerHTML = dayW.length
-        ? dayW.map(workoutCard).join('')
-        : `<div class="empty-state" style="padding:var(--space-lg)"><div class="empty-icon">🏋️</div><p>No workouts on this day. <a href="/log-workout.html">Log one?</a></p></div>`;
-    }
-
-    // ── Load all workouts ──
     async function loadAllWorkouts() {
       const data = await apiFetch('/api/workouts?limit=200', {}, false);
-      if (data._error || !Array.isArray(data)) return;
-      allWorkouts = data;
-
-      // Completed only in History tab
-      const completed = data.filter(w => w.finished_at);
-      document.getElementById('history-count').textContent = completed.length + ' sessions';
-      const compEl = document.getElementById('completed-workouts');
-      if (!completed.length) {
-        compEl.innerHTML = `<div class="empty-state"><div class="empty-icon">💪</div><h3>No completed workouts yet</h3><p><a href="/log-workout.html">Log your first session</a></p></div>`;
-      } else {
-        compEl.innerHTML = sessionTable(completed);
+      const el = document.getElementById('diary-list');
+      if (data._error || !Array.isArray(data)) {
+        el.innerHTML = `<div class="empty-state"><div class="empty-icon">⚠️</div><h3>Could not load workouts</h3></div>`;
+        return;
       }
 
-      // All sessions in Diary tab
       document.getElementById('diary-count').textContent = data.length + ' total';
-      const diaryEl = document.getElementById('diary-list');
+
       if (!data.length) {
-        diaryEl.innerHTML = `<div class="empty-state"><div class="empty-icon">📓</div><h3>No sessions yet</h3><p><a href="/log-workout.html">Start logging</a></p></div>`;
-      } else {
-        // Group by month
-        const groups = {};
-        data.forEach(w => {
-          let month = (w.workout_date || '').slice(0, 7);
-          if (month.length < 7) month = 'Unknown';
-          if (!groups[month]) groups[month] = [];
-          groups[month].push(w);
-        });
-        const names = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-        diaryEl.innerHTML = Object.keys(groups).sort().reverse().map(month => {
-          let label = month;
-          if (month !== 'Unknown') {
-             const [y, m] = month.split('-');
-             label = `${names[parseInt(m)-1] || ''} ${y}`;
-          }
-          return `
-            <div style="margin-bottom:var(--space-xl)">
-              <div style="font-size:.78rem;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em;padding:8px 0;border-bottom:1px solid var(--bg-border);margin-bottom:8px">
-                ${label}
-              </div>
-              ${groups[month].sort((a,b) => (b.workout_date||'').localeCompare(a.workout_date||'')).map(diaryRow).join('')}
-            </div>`;
-        }).join('');
+        el.innerHTML = `<div class="empty-state"><div class="empty-icon">📓</div><h3>No sessions yet</h3><p><a href="/log-workout.html">Start logging</a></p></div>`;
+        return;
       }
+
+      // Group by month
+      const groups = {};
+      data.forEach(w => {
+        let month = (w.workout_date || '').slice(0, 7);
+        if (month.length < 7) month = 'Unknown';
+        if (!groups[month]) groups[month] = [];
+        groups[month].push(w);
+      });
+
+      const names = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+      el.innerHTML = Object.keys(groups).sort().reverse().map(month => {
+        let label = month;
+        if (month !== 'Unknown') {
+          const [y, m] = month.split('-');
+          label = `${names[parseInt(m)-1] || ''} ${y}`;
+        }
+        const rows = groups[month]
+          .sort((a,b) => (b.workout_date||'').localeCompare(a.workout_date||''))
+          .map(diaryRow).join('');
+        return `
+          <div style="margin-bottom:var(--space-xl)">
+            <div style="font-size:.78rem;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em;padding:8px 0;border-bottom:1px solid var(--bg-border);margin-bottom:8px">
+              ${label}
+            </div>
+            ${rows}
+          </div>`;
+      }).join('');
     }
 
-    function sessionTable(wkts) {
-      return `<div class="table-wrapper"><table class="table">
-        <thead><tr><th>Date</th><th>Workout</th><th>Exercises</th><th>Sets</th><th>Duration</th><th></th></tr></thead>
-        <tbody>${wkts.map(w => `
-          <tr>
-            <td>${formatDate(w.workout_date)}</td>
-            <td><span style="font-weight:600">${w.name||'Session'}</span></td>
-            <td>${w.exercise_count||0}</td>
-            <td>${w.set_count||0}</td>
-            <td>${formatDuration(w.duration_minutes)}</td>
-            <td style="display:flex;gap:4px">
-              <a href="/workout-detail.html?id=${w.id}" class="btn btn-ghost btn-sm">View</a>
-              <a href="/log-workout.html?workout_id=${w.id}" class="btn btn-outline btn-sm">Edit</a>
-            </td>
-          </tr>
-        `).join('')}</tbody>
-      </table></div>`;
-    }
+    let _currentShareWorkout = null;
+    let _sharePhotoFile = null;
 
     function diaryRow(w) {
       const isComplete = !!w.finished_at;
       return `<div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid rgba(255,255,255,.04)">
         <div style="width:10px;height:10px;border-radius:50%;flex-shrink:0;background:${isComplete?'var(--green)':'var(--amber)'}"></div>
         <div style="flex:1">
-          <div style="font-weight:700;font-size:.9rem">${w.name||'Session'}</div>
+          <div style="font-weight:700;font-size:.9rem">${escHtml(w.name||'Session')}</div>
           <div style="font-size:.74rem;color:var(--text-muted)">${formatDate(w.workout_date)} · ${w.exercise_count||0} exercises · ${w.set_count||0} sets · ${isComplete?formatDuration(w.duration_minutes):'<em>In-progress</em>'}</div>
         </div>
         <div style="display:flex;gap:4px">
           <a href="/workout-detail.html?id=${w.id}" class="btn btn-ghost btn-sm">View</a>
-          ${!isComplete ? `<a href="/log-workout.html?workout_id=${w.id}" class="btn btn-primary btn-sm">Continue</a>` : ''}
+          ${isComplete ? `<button class="btn btn-ghost btn-sm" onclick="openShareModal(${w.id}, '${escHtml(w.name).replace(/'/g,"\\'")}')" style="display:flex;align-items:center;gap:4px">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"></circle><circle cx="6" cy="12" r="3"></circle><circle cx="18" cy="19" r="3"></circle><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line></svg>
+            Share
+          </button>` : `<a href="/log-workout.html?workout_id=${w.id}" class="btn btn-primary btn-sm">Continue</a>`}
         </div>
       </div>`;
     }
 
-    function workoutCard(w) {
-      return `<div class="card card-sm mb-md">
-        <div class="flex-between">
-          <div style="font-weight:700">${w.name||'Session'}</div>
-          <span class="badge badge-violet">${w.set_count||0} sets</span>
-        </div>
-        <div style="font-size:.8rem;color:var(--text-muted);margin-top:4px">${w.exercise_count||0} exercises · ${formatDuration(w.duration_minutes)}</div>
-        <div style="margin-top:var(--space-sm);display:flex;gap:4px">
-          <a href="/workout-detail.html?id=${w.id}" class="btn btn-primary btn-sm">View</a>
-          <a href="/log-workout.html?workout_id=${w.id}" class="btn btn-outline btn-sm">Edit</a>
-        </div>
-      </div>`;
+    function openShareModal(workoutId, workoutName) {
+      _currentShareWorkout = { id: workoutId, name: workoutName };
+      document.getElementById('share-caption').value = '';
+      removeSharePhoto();
+      openModal('share-workout-modal');
+    }
+
+    function handleSharePhoto(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+      _sharePhotoFile = file;
+      const url = URL.createObjectURL(file);
+      document.getElementById('share-photo-img').src = url;
+      document.getElementById('share-photo-preview').style.display = 'block';
+    }
+
+    function removeSharePhoto() {
+      _sharePhotoFile = null;
+      document.getElementById('share-photo-input').value = '';
+      document.getElementById('share-photo-preview').style.display = 'none';
+      document.getElementById('share-photo-img').src = '';
+    }
+
+    async function submitShareWorkout() {
+      if (!_currentShareWorkout) return;
+      
+      const btn = document.getElementById('btn-submit-share');
+      btn.disabled = true;
+      btn.textContent = 'Preparing Post...';
+      
+      // 1. Fetch workout details to build summary
+      const wData = await apiFetch(`/api/workouts/${_currentShareWorkout.id}`);
+      if (wData._error) {
+        showToast('Failed to load workout details', 'error');
+        btn.disabled = false; btn.textContent = '📢 Share to Feed';
+        return;
+      }
+      
+      // 2. Build summary text
+      const caption = document.getElementById('share-caption').value.trim();
+      const lines = [
+        `🏋️ Workout Completed: ${_currentShareWorkout.name}`,
+        `Duration: ${formatDuration(wData.duration_minutes || 0)}`,
+        `Volume: ${(wData.exercises || []).reduce((acc, ex) => acc + (ex.sets||[]).reduce((sAcc, s) => sAcc + ((s.weight_kg||0)*(s.reps||1)), 0), 0).toLocaleString()} kg`,
+        ''
+      ];
+      
+      if (wData.exercises && wData.exercises.length) {
+        lines.push('Detailed Breakdown:');
+        wData.exercises.forEach(ex => {
+          lines.push(`\n**${ex.exercise_name}**`);
+          (ex.sets || []).forEach(s => {
+            const p = [];
+            if (s.weight_kg != null) p.push(`${s.weight_kg}kg`);
+            if (s.reps != null) p.push(`${s.reps} reps`);
+            if (s.duration_seconds != null) p.push(`${s.duration_seconds}s`);
+            lines.push(`- Set ${s.set_number}: ${p.join(' × ')}`);
+          });
+        });
+      }
+      
+      if (caption) {
+        lines.push('');
+        lines.push(caption);
+      }
+      
+      const content = lines.join('\n');
+      btn.textContent = 'Posting...';
+      
+      // 3. Post to feed
+      let res;
+      if (_sharePhotoFile) {
+        const fd = new FormData();
+        fd.append('content', content);
+        fd.append('post_type', 'achievement');
+        fd.append('photo', _sharePhotoFile);
+        res = await apiUpload('/api/community/posts/with-photo', fd);
+      } else {
+        res = await apiFetch('/api/community/posts', {
+          method: 'POST',
+          body: { content, post_type: 'achievement' },
+        }, false);
+      }
+
+      btn.disabled = false;
+      btn.textContent = '📢 Share to Feed';
+
+      if (res && !res._error) {
+        closeModal('share-workout-modal');
+        launchConfetti(2000);
+        showToast('Workout shared to feed! 🎉', 'success');
+      } else {
+        showToast('Failed to share — please try again', 'error');
+      }
     }
   </script>
 </body>

@@ -93,6 +93,75 @@
       div.id = `post-${p.id}`;
       const initials = (p.display_name || p.email || '?').substring(0,2).toUpperCase();
       const isOwn = p.user_id === user.user_id;
+
+      // Achievement/Workout posts get special card styles
+      let bodyHtml;
+      if (p.post_type === 'achievement' && p.content.includes('Achievement Unlocked:')) {
+        const lines = (p.content || '').split('\n').filter(Boolean);
+        const titleLine = lines.find(l => l.startsWith('🏆 Achievement Unlocked:')) || lines[0] || '';
+        const achievTitle = titleLine.replace('🏆 Achievement Unlocked:', '').trim();
+        const exerciseLine = lines.find(l => l.startsWith('Exercise:')) || '';
+        const resultLine   = lines.find(l => l.startsWith('Result:'))   || '';
+        const captionLines = lines.filter(l => 
+          !l.startsWith('🏆') && !l.startsWith('Exercise:') && !l.startsWith('Result:') && !l.startsWith('Date:')
+        );
+
+        bodyHtml = `
+          <div style="background:linear-gradient(145deg,rgba(245,158,11,.08),rgba(139,92,246,.06));border:1px solid rgba(245,158,11,.25);border-radius:12px;padding:16px;margin:12px 0;border-left:4px solid var(--amber)">
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+              <div style="font-size:2rem">🏆</div>
+              <div>
+                <div style="font-weight:900;font-size:1rem;color:var(--text)">${escapeHtml(achievTitle)}</div>
+                ${exerciseLine ? `<div style="font-size:.75rem;color:var(--text-muted);margin-top:2px">${escapeHtml(exerciseLine.replace('Exercise:','').trim())}</div>` : ''}
+              </div>
+            </div>
+            ${resultLine ? `<div style="font-size:1.2rem;font-weight:900;color:var(--amber);margin-bottom:8px">${escapeHtml(resultLine.replace('Result:','').trim())}</div>` : ''}
+            ${captionLines.length ? `<div style="font-size:.88rem;color:var(--text-secondary);padding-top:8px;border-top:1px solid rgba(245,158,11,.15)">${captionLines.map(l=>escapeHtml(l)).join('<br>')}</div>` : ''}
+            ${p.media_path ? `<img src="${p.media_path}" style="width:100%;border-radius:8px;margin-top:10px;object-fit:cover;max-height:240px;display:block">` : ''}
+          </div>`;
+      } else if (p.content.startsWith('🏋️ Workout Completed:')) {
+        const lines = (p.content || '').split('\n').filter(Boolean);
+        const titleLine = lines.find(l => l.startsWith('🏋️ Workout Completed:')) || '';
+        const workoutName = titleLine.replace('🏋️ Workout Completed:', '').trim();
+        const statsLines = lines.filter(l => l.startsWith('Duration:') || l.startsWith('Volume:'));
+        const detailLines = lines.filter(l => l.startsWith('Detailed Breakdown:') || l.startsWith('- Set ') || l.startsWith('**'));
+        const captionLines = lines.filter(l => 
+          !l.startsWith('🏋️') && !l.startsWith('Duration:') && !l.startsWith('Volume:') && 
+          !l.startsWith('Detailed Breakdown:') && !l.startsWith('- Set ') && !l.startsWith('**')
+        );
+
+        bodyHtml = `
+          <div style="background:rgba(139,92,246,0.05);border:1px solid rgba(139,92,246,0.2);border-radius:12px;padding:16px;margin:12px 0;border-left:4px solid var(--violet)">
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+              <div style="font-size:2rem">🏋️</div>
+              <div>
+                <div style="font-weight:900;font-size:1.1rem;color:var(--text)">${escapeHtml(workoutName)}</div>
+                <div style="font-size:.75rem;color:var(--text-muted)">${statsLines.map(l=>escapeHtml(l)).join(' · ')}</div>
+              </div>
+            </div>
+            
+            <div style="background:rgba(0,0,0,0.1);border-radius:8px;padding:10px;font-size:0.8rem;color:var(--text-secondary);margin-bottom:8px">
+              ${detailLines.map(l => {
+                if (l.startsWith('**')) return `<div style="font-weight:700;color:var(--text);margin-top:8px">${escapeHtml(l.replace(/\*\*/g,''))}</div>`;
+                if (l.startsWith('- Set ')) return `<div style="margin-left:8px;opacity:0.8">${escapeHtml(l)}</div>`;
+                return `<div style="font-weight:600;margin-bottom:4px;color:var(--violet-l)">${escapeHtml(l)}</div>`;
+              }).join('')}
+            </div>
+
+            ${captionLines.length ? `<div style="font-size:.9rem;color:var(--text-secondary);margin:12px 0">${captionLines.map(l=>escapeHtml(l)).join('<br>')}</div>` : ''}
+            
+            <button class="btn btn-ghost btn-sm" onclick="sendToCoach(this, ${p.id})" style="width:100%;margin-top:10px;border:1px dashed var(--violet-l);color:var(--violet-l)">
+              💬 Send to AI Coach for Feedback
+            </button>
+
+            ${p.media_path ? `<img src="${p.media_path}" style="width:100%;border-radius:8px;margin-top:10px;object-fit:cover;max-height:240px;display:block">` : ''}
+          </div>`;
+      } else {
+        bodyHtml = `
+          <p class="post-content">${escapeHtml(p.content)}</p>
+          ${p.media_path ? `<img src="${p.media_path}" style="width:100%;border-radius:8px;margin-top:8px;object-fit:cover;max-height:280px;display:block">` : ''}`;
+      }
+
       div.innerHTML = `
         <div class="post-header">
           <div class="post-avatar">${initials}</div>
@@ -102,7 +171,7 @@
           </div>
           ${isOwn ? `<button class="btn btn-ghost btn-icon" onclick="deletePost(${p.id})" style="margin-left:auto;color:var(--text-xmuted)">🗑</button>` : ''}
         </div>
-        <p class="post-content">${escapeHtml(p.content)}</p>
+        ${bodyHtml}
         <div class="post-actions">
           <button class="post-action-btn ${p.liked_by_me?'liked':''}" id="like-btn-${p.id}" onclick="toggleLike(${p.id})">
             ♥ <span id="likes-${p.id}">${p.likes_count}</span>
@@ -173,6 +242,33 @@
     }
 
     function escapeHtml(s) { return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>'); }
+    
+    async function sendToCoach(btn, postId) {
+      const p = _posts.find(x => x.id === postId);
+      if (!p) return;
+
+      btn.disabled = true;
+      btn.innerHTML = `⌛ Sending...`;
+
+      try {
+        const msg = `Hey Coach, I just shared this workout to the feed. Can you give me some feedback and suggest what I should focus on next time?\n\n${p.content}`;
+        const res = await apiFetch('/api/ai/chat', {
+          method: 'POST',
+          body: { message: msg }
+        });
+
+        if (!res._error) {
+          showToast('Sent to Coach! Go to the AI Coach tab to see the feedback. 🤖', 'success');
+          btn.innerHTML = `✅ Sent to Coach`;
+        } else {
+          btn.disabled = false;
+          btn.innerHTML = `💬 Send to AI Coach for Feedback`;
+        }
+      } catch (err) {
+        btn.disabled = false;
+        btn.innerHTML = `💬 Send to AI Coach for Feedback`;
+      }
+    }
   </script>
 </body>
 </html>

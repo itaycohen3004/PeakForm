@@ -1,9 +1,51 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <title>Saved Workouts — Reprise</title>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+  <title>Templates — PeakForm</title>
+  <meta name="description" content="Manage your workout templates on PeakForm.">
+  <link rel="icon" href="/static/assets/logo.png">
   <link rel="stylesheet" href="/static/css/main.css">
   <link rel="stylesheet" href="/static/css/components.css">
+  <style>
+    .template-card {
+      background: var(--bg-card);
+      border: 1px solid var(--bg-border);
+      border-radius: var(--radius-lg);
+      padding: var(--space-lg);
+      margin-bottom: var(--space-md);
+      transition: all var(--transition);
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-md);
+    }
+    .template-card:hover { border-color: rgba(139,92,246,.25); }
+    .template-header { display: flex; justify-content: space-between; align-items: flex-start; }
+    .template-title { font-size: 1.1rem; font-weight: 800; margin-bottom: 4px; }
+    .template-meta { font-size: 0.8rem; color: var(--text-muted); }
+    
+    .template-exercise-list {
+      background: rgba(0,0,0,.15);
+      border-radius: var(--radius-md);
+      padding: var(--space-md);
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .template-exercise-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 8px 12px;
+      background: var(--bg-surface);
+      border: 1px solid var(--bg-border);
+      border-radius: var(--radius-sm);
+    }
+    .ex-item-info { flex: 1; }
+    .ex-item-name { font-weight: 700; font-size: 0.9rem; }
+    .ex-item-meta { font-size: 0.75rem; color: var(--text-muted); }
+    .ex-item-sets { font-family: monospace; font-size: 0.8rem; background: rgba(139,92,246,.15); color: var(--violet-l); padding: 2px 6px; border-radius: 4px; }
+  </style>
 </head>
 <body class="app-layout">
   <button class="mobile-menu-btn" id="mobile-menu-btn">☰</button>
@@ -11,224 +53,62 @@
   <aside class="sidebar" id="sidebar"></aside>
 
   <main class="main-content">
-    <div class="page-header flex-between">
-      <div><h1>Saved Workouts & Presets</h1><p>Build reusable routines and set your weekly schedule</p></div>
-      <button class="btn btn-primary" onclick="openModal('new-tpl-modal')">+ Save as Preset</button>
+    <div class="page-header flex-between mb-xl">
+      <div>
+        <h1>📋 Templates</h1>
+        <p>Manage your saved workout plans</p>
+      </div>
+      <button class="btn btn-primary" onclick="openTemplateModal('create')">+ New Template</button>
     </div>
 
-    <!-- Weekly schedule -->
-    <div class="card mb-xl">
-      <h3 class="card-title mb-lg">Weekly Schedule</h3>
-      <div id="schedule-grid" style="display:grid;grid-template-columns:repeat(7,1fr);gap:8px"></div>
-    </div>
-
-    <!-- Templates list -->
-    <div class="grid-2" id="templates-grid">
-      <div class="skeleton skeleton-block"></div>
-      <div class="skeleton skeleton-block"></div>
-    </div>
+    <div id="templates-list"><div class="skeleton skeleton-block"></div></div>
   </main>
 
-  <!-- New template modal -->
-  <div class="modal-backdrop" id="new-tpl-modal" style="display:none" onclick="if(event.target===this)closeModal('new-tpl-modal')">
-    <div class="modal" style="max-width:520px">
+  <!-- New Template Modal -->
+  <div id="template-modal" class="modal" style="display:none" onclick="if(event.target===this)closeModal('template-modal')">
+    <div class="modal-box" style="max-width:540px">
       <div class="modal-header">
-        <h3 class="modal-title">New Preset</h3>
-        <button class="modal-close" onclick="closeModal('new-tpl-modal')">✕</button>
+        <span class="modal-title" id="tpl-modal-title">✨ Create Template</span>
+        <button class="modal-close" onclick="closeModal('template-modal')">✕</button>
       </div>
-      <form onsubmit="createTemplate(event)">
-        <div class="form-group mb-md">
-          <label class="form-label">Workout Name *</label>
-          <input type="text" id="tpl-name" class="form-control" placeholder="e.g. Push Day, Pull Day, Legs..." required>
-        </div>
-        <div class="form-group mb-lg">
-          <label class="form-label">Notes</label>
-          <textarea id="tpl-notes" class="form-control" rows="2" placeholder="Any notes about this workout split..."></textarea>
-        </div>
-        <button type="submit" class="btn btn-primary btn-full">Create Preset</button>
-      </form>
-    </div>
-  </div>
-
-  <!-- Schedule assign modal -->
-  <div class="modal-backdrop" id="schedule-modal" style="display:none" onclick="if(event.target===this)closeModal('schedule-modal')">
-    <div class="modal">
-      <div class="modal-header">
-        <h3 class="modal-title" id="schedule-modal-title">Assign Workout</h3>
-        <button class="modal-close" onclick="closeModal('schedule-modal')">✕</button>
+      
+      <div class="form-group mb-md">
+        <label class="form-label">Template Name</label>
+        <input type="text" id="tpl-name" class="form-control" placeholder="e.g. Push Day A" required>
       </div>
-      <input type="hidden" id="schedule-weekday">
+      
+      <div class="form-group mb-md">
+        <label class="form-label">Training Type</label>
+        <select id="tpl-type" class="form-control">
+          <option value="gym">Gym</option>
+          <option value="calisthenics">Calisthenics</option>
+          <option value="hybrid">Hybrid</option>
+          <option value="home">Home</option>
+          <option value="functional">Functional</option>
+        </select>
+      </div>
+      
       <div class="form-group mb-lg">
-        <label class="form-label">Template</label>
-        <select id="schedule-tpl-select" class="form-control"></select>
-      </div>
-      <div style="display:flex;gap:8px">
-        <button class="btn btn-primary btn-full" onclick="assignSchedule()">Assign</button>
-        <button class="btn btn-danger" onclick="clearSchedule()">Clear</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- Specific date schedule modal -->
-  <div class="modal-backdrop" id="schedule-date-modal" style="display:none" onclick="if(event.target===this)closeModal('schedule-date-modal')">
-    <div class="modal">
-      <div class="modal-header">
-        <h3 class="modal-title">Schedule Workout</h3>
-        <button class="modal-close" onclick="closeModal('schedule-date-modal')">✕</button>
-      </div>
-      <form onsubmit="confirmScheduleDate(event)">
-        <input type="hidden" id="sd-tpl-id">
-        <input type="hidden" id="sd-tpl-name">
-        <div class="form-group mb-lg">
-          <label class="form-label">Select Date (Future)</label>
-          <input type="date" id="sd-date" class="form-control" required>
+        <label class="form-label">Exercises</label>
+        
+        <div id="tpl-exercises-container" class="mb-md" style="display:flex;flex-direction:column;gap:8px"></div>
+        
+        <div class="exercise-search-wrap" id="tpl-exercise-search-wrap">
+          <input type="text" id="tpl-exercise-search" class="form-control" placeholder="🔍 Search to add exercise..." oninput="searchTplExercises(this.value)" autocomplete="off">
+          <div class="exercise-dropdown" id="tpl-exercise-dropdown"></div>
         </div>
-        <button type="submit" class="btn btn-primary btn-full">Schedule Session</button>
-      </form>
+      </div>
+      
+      <div style="display:flex;gap:12px;margin-top:var(--space-xl)">
+        <button type="button" class="btn btn-ghost btn-full" onclick="closeModal('template-modal')">Cancel</button>
+        <button type="button" class="btn btn-primary btn-full" onclick="saveTemplate()" id="save-tpl-btn">Save Template</button>
+      </div>
     </div>
   </div>
 
   <div id="toast-container" class="toast-container"></div>
   <script src="/static/js/utils.js"></script>
   <script src="/static/js/api.js"></script>
-  <script>
-    const DAYS = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
-    let templates = [], schedule = {};
-
-    onReady(async () => {
-      requireAuth(); renderSidebar(); initMobileSidebar();
-      await Promise.all([loadTemplates(), loadSchedule()]);
-    });
-
-    async function loadTemplates() {
-      const data = await apiFetch('/api/templates', {}, false);
-      if (data._error) return;
-      templates = data;
-      renderTemplates();
-      populateScheduleSelect();
-    }
-
-    async function loadSchedule() {
-      const data = await apiFetch('/api/templates/schedule', {}, false);
-      if (!data._error) {
-        schedule = {};
-        data.forEach(s => schedule[s.weekday] = s);
-      }
-      renderScheduleGrid();
-    }
-
-    function renderScheduleGrid() {
-      const grid = document.getElementById('schedule-grid');
-      grid.innerHTML = DAYS.map((day, i) => {
-        const s = schedule[i];
-        return `
-          <div style="text-align:center;cursor:pointer" onclick="openScheduleModal(${i})">
-            <div style="font-size:.7rem;font-weight:700;color:var(--text-muted);text-transform:uppercase;margin-bottom:6px">${day}</div>
-            <div class="card card-sm" style="padding:10px;min-height:60px;display:flex;align-items:center;justify-content:center;border-color:${s?'rgba(139,92,246,.35)':'var(--bg-border)'};background:${s?'rgba(139,92,246,.08)':'var(--bg-card)'}">
-              ${s ? `<span style="font-size:.78rem;font-weight:700;color:var(--violet-l);text-align:center">${s.template_name}</span>` : `<span style="color:var(--text-xmuted);font-size:.8rem">+ Set</span>`}
-            </div>
-          </div>
-        `;
-      }).join('');
-    }
-
-    function escapeAttr(s) { return (s||'').replace(/'/g,"\\'").replace(/"/g,"&quot;"); }
-
-    function renderTemplates() {
-      const grid = document.getElementById('templates-grid');
-      if (!templates.length) {
-        grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1"><div class="empty-icon">📋</div><h3>No templates yet</h3><p>Create your first split (Push Day, Pull Day…)</p></div>`;
-        return;
-      }
-      grid.innerHTML = templates.map(t => `
-        <div class="card">
-          <div class="flex-between mb-md">
-            <div><div style="font-weight:800;font-size:1rem">${t.name}</div><div style="font-size:.75rem;color:var(--text-muted);margin-top:2px">${t.exercise_count||0} exercises</div></div>
-            <button class="btn btn-ghost btn-icon" onclick="deleteTemplate(${t.id})">🗑</button>
-          </div>
-          ${t.notes ? `<p style="font-size:.82rem;color:var(--text-muted);margin-bottom:var(--space-md)">${t.notes}</p>` : ''}
-          <div style="display:flex;gap:8px;flex-wrap:wrap">
-            <a href="/log-workout.html?from_template=${t.id}" class="btn btn-primary btn-sm">▶ Start</a>
-            <button onclick="openScheduleDateModal(${t.id}, '${escapeAttr(t.name)}')" class="btn btn-outline btn-sm">📅 Schedule</button>
-            <a href="/template-editor.html?id=${t.id}" class="btn btn-outline btn-sm">✏️ Edit</a>
-          </div>
-        </div>
-      `).join('');
-    }
-
-    function openScheduleDateModal(id, name) {
-      document.getElementById('sd-tpl-id').value = id;
-      document.getElementById('sd-tpl-name').value = name;
-      
-      const f = new Date(); f.setDate(f.getDate() + 1);
-      document.getElementById('sd-date').value = f.toISOString().split('T')[0];
-      
-      openModal('schedule-date-modal');
-    }
-
-    async function confirmScheduleDate(e) {
-      e.preventDefault();
-      const res = await apiFetch('/api/workouts/from-template', {
-        method: 'POST',
-        body: {
-          template_id: parseInt(document.getElementById('sd-tpl-id').value),
-          workout_date: document.getElementById('sd-date').value,
-          name: document.getElementById('sd-tpl-name').value
-        }
-      });
-      if (!res._error) {
-        closeModal('schedule-date-modal');
-        showToast('Workout successfully scheduled! View on dashboard.', 'success');
-      }
-    }
-
-    function populateScheduleSelect() {
-      const sel = document.getElementById('schedule-tpl-select');
-      sel.innerHTML = templates.map(t => `<option value="${t.id}">${t.name}</option>`).join('');
-    }
-
-    function openScheduleModal(weekday) {
-      document.getElementById('schedule-weekday').value = weekday;
-      document.getElementById('schedule-modal-title').textContent = `${DAYS[weekday]} — Assign Template`;
-      if (schedule[weekday]) {
-        document.getElementById('schedule-tpl-select').value = schedule[weekday].template_id;
-      }
-      openModal('schedule-modal');
-    }
-
-    async function assignSchedule() {
-      const weekday = parseInt(document.getElementById('schedule-weekday').value);
-      const tplId   = parseInt(document.getElementById('schedule-tpl-select').value);
-      const res = await apiFetch('/api/templates/schedule', { method:'POST', body:{ weekday, template_id: tplId } });
-      if (!res._error) { closeModal('schedule-modal'); await loadSchedule(); showToast('Schedule updated!','success'); }
-    }
-
-    async function clearSchedule() {
-      const weekday = parseInt(document.getElementById('schedule-weekday').value);
-      await apiFetch(`/api/templates/schedule/${weekday}`, { method:'DELETE' });
-      closeModal('schedule-modal');
-      await loadSchedule();
-    }
-
-    async function createTemplate(e) {
-      e.preventDefault();
-      const res = await apiFetch('/api/templates', { method:'POST', body:{
-        name:  document.getElementById('tpl-name').value.trim(),
-        notes: document.getElementById('tpl-notes').value.trim(),
-      }});
-      if (!res._error) {
-        closeModal('new-tpl-modal');
-        showToast('Template created!','success');
-        await loadTemplates();
-        window.location.href = `/template-editor.html?id=${res.id}`;
-      }
-    }
-
-    async function deleteTemplate(id) {
-      if (!confirm('Delete this template?')) return;
-      await apiFetch(`/api/templates/${id}`, { method:'DELETE' });
-      await loadTemplates();
-    }
-  </script>
+  <script src="/static/js/templates.js"></script>
 </body>
 </html>

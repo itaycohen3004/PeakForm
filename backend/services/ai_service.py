@@ -100,7 +100,7 @@ class AICoach:
             print(f"[AICoach] Chat error: {e}")
             return f"I encountered an issue: {str(e)[:200]}"
 
-    def analyze_exercise(self, context: str, exercise_name: str) -> dict:
+    def analyze_exercise(self, context: str, exercise_name: str, current_sets: list = None) -> dict:
         """Return structured progression recommendations."""
         if not self.is_ready:
             return {
@@ -110,12 +110,19 @@ class AICoach:
                 "confidence": "low",
             }
 
+        current_block = ""
+        if current_sets:
+            current_block = "\n\nCurrent working sets completed so far in THIS session:\n" + \
+                "\n".join([f"- Set {s.get('set_number')}: {s.get('weight_kg')}kg x {s.get('reps')} reps" for s in current_sets])
+
         prompt = f"""{SYSTEM_PROMPT}
 
 {context}
 
-Analyze the athlete's recent performance on: **{exercise_name}**
+Analyze the athlete's performance on: **{exercise_name}**
+{current_block}
 
+Provide the recommendation for the NEXT set.
 Respond ONLY with valid JSON (no markdown code blocks):
 {{
   "next_reps": <integer or null>,
@@ -261,8 +268,8 @@ def run_coaching_chat(user_message: str, context: str, history: list) -> str:
     return _coach.chat(user_message, context, history)
 
 
-def analyze_workout_progression(context: str, exercise_name: str) -> dict:
-    return _coach.analyze_exercise(context, exercise_name)
+def analyze_workout_progression(context: str, exercise_name: str, current_sets: list = None) -> dict:
+    return _coach.analyze_exercise(context, exercise_name, current_sets=current_sets)
 
 
 def suggest_achievement_deadline(context: str, goal_data: dict) -> dict:

@@ -1,12 +1,13 @@
 """
 AI coaching routes — conversational coaching and progression analysis.
 """
+import json
 from flask import Blueprint, request, jsonify, g
 from backend.middleware.auth import require_auth
 from backend.services.ai_service import (
     run_coaching_chat, analyze_workout_progression,
     save_ai_message, get_ai_history, build_athlete_context,
-    suggest_achievement_deadline
+    suggest_achievement_deadline, _coach, SYSTEM_PROMPT,
 )
 
 ai_bp = Blueprint("ai", __name__, url_prefix="/api/ai")
@@ -79,8 +80,12 @@ def analyze_exercise(exercise_id):
     ex = get_exercise_by_id(exercise_id)
     if not ex:
         return jsonify({"error": "Exercise not found"}), 404
+    
+    data = request.get_json(silent=True) or {}
+    current_sets = data.get("current_sets", [])
+    
     context = _build_context(g.user_id)
-    result  = analyze_workout_progression(context, ex["name"])
+    result  = analyze_workout_progression(context, ex["name"], current_sets=current_sets)
     return jsonify({**result, "exercise_name": ex["name"]}), 200
 
 
@@ -104,41 +109,139 @@ def suggest_deadline():
     result = suggest_achievement_deadline(context, data)
     return jsonify(result), 200
 
-@ai_bp.route("/analyze-workout/<int:workout_id>", methods=["POST"])
+@ai_bp.route("/next-session/<int:workout_id>", methods=["POST"])
 @require_auth
-def analyze_workout_route(workout_id):
+def next_session_plan(workout_id):
+    """
+    Recommend the next workout session: per-exercise weight + rep targets
+    based on the athlete's last performance on this workout.
+    """
     from backend.models.workout import get_full_workout
+    from backend.models.db import get_db
+
     w_data = get_full_workout(workout_id)
     if not w_data:
         return jsonify({"error": "Workout not found"}), 404
-        
-    # Find previous workout for the same template if available
-    from backend.models.db import get_db
+
     db = get_db()
-    prev_summary = None
-    if w_data.get("template_id"):
-        prev = db.execute('''
-            SELECT * FROM workouts 
-            WHERE user_id = ? AND template_id = ? AND id < ?
-            ORDER BY workout_date DESC LIMIT 1
-        ''', (g.user_id, w_data["template_id"], workout_id)).fetchone()
-        if prev:
-            prev_data = get_full_workout(prev["id"])
-            prev_sum = sum(s["weight_kg"] * s["reps"] 
-                           for e in prev_data.get("exercises", []) 
-                           for s in e.get("sets", []) 
-                           if s.get("weight_kg") and s.get("reps"))
-            prev_summary = f"Previous Session total volume: {prev_sum} kg"
-            
-    cur_sum = sum(s["weight_kg"] * s["reps"] 
-                  for e in w_data.get("exercises", []) 
-                  for s in e.get("sets", []) 
-                  if s.get("weight_kg") and s.get("reps"))
-    
-    from backend.services.ai_service import analyze_workout_recap
-    recap = analyze_workout_recap(w_data, cur_sum, prev_summary)
-    
-    return jsonify({"analysis": recap}), 200
+
+    # ── Build previous session summary ─────────────────────────
+    exercises = w_data.get("exercises", [])
+    ex_summaries = []
+    for ex in exercises:
+        work_sets = [s for s in ex.get("sets", []) if not s.get("is_warmup")]
+        if not work_sets:
+            continue
+        best_weight = max((s.get("weight_kg") or 0 for s in work_sets), default=0)
+        best_reps   = max((s.get("reps") or 0 for s in work_sets), default=0)
+        avg_reps    = (
+            sum(s.get("reps") or 0 for s in work_sets) / len(work_sets)
+            if work_sets else 0
+        )
+        total_sets  = len(work_sets)
+        set_type    = ex.get("set_type", "reps_weight")
+        ex_summaries.append({
+            "name":        ex.get("exercise_name", "Unknown"),
+            "set_type":    set_type,
+            "total_sets":  total_sets,
+            "best_weight": best_weight,
+            "best_reps":   best_reps,
+            "avg_reps":    round(avg_reps, 1),
+            "all_sets":    work_sets,
+        })
+
+    # ── Rule-based progression (works without AI) ───────────────
+    rule_based = []
+    for ex in ex_summaries:
+        st = ex["set_type"]
+        rec = {"exercise": ex["name"], "sets": ex["total_sets"]}
+        if st == "reps_weight":
+            # If all sets hit >= target reps, add 2.5 kg; else same weight, add 1 rep
+            reps_hit_target = ex["avg_reps"] >= ex["best_reps"]
+            if reps_hit_target and ex["best_weight"] > 0:
+                rec["weight_kg"] = round(ex["best_weight"] + 2.5, 1)
+                rec["reps"]      = ex["best_reps"]
+                rec["note"]      = "Progressive overload: +2.5 kg from last session"
+            elif ex["best_weight"] > 0:
+                rec["weight_kg"] = ex["best_weight"]
+                rec["reps"]      = min(ex["best_reps"] + 1, 12)
+                rec["note"]      = f"Same weight — aim for {rec['reps']} reps this time"
+            else:
+                rec["reps"]  = ex["best_reps"]
+                rec["note"]  = "Bodyweight — try to beat your rep count"
+        elif st == "reps_only":
+            rec["reps"] = ex["best_reps"] + 1
+            rec["note"] = f"Beat last session: target {rec['reps']} reps per set"
+        elif st in ("time_only", "time_weight"):
+            best_secs = max((s.get("duration_seconds") or 0 for s in ex["all_sets"]), default=0)
+            rec["seconds"] = best_secs + 5
+            rec["note"]    = f"Hold for {rec['seconds']}s — 5s longer than last time"
+        rule_based.append(rec)
+
+    # ── Try AI enhancement ──────────────────────────────────────
+    ai_analysis = None
+    if _coach.is_ready and ex_summaries:
+        try:
+            context = _build_context(g.user_id)
+            ex_block = "\n".join(
+                f"- {e['name']}: {e['total_sets']} sets, best {e['best_weight']}kg x {e['best_reps']} reps"
+                for e in ex_summaries
+            )
+            prompt = f"""{SYSTEM_PROMPT}
+
+{context}
+
+The athlete just completed this workout on {w_data.get('workout_date')}:
+{ex_block}
+
+For their NEXT session of this exact workout, give specific targets per exercise.
+Respond ONLY with valid JSON (no markdown), using this structure:
+{{
+  "overall_note": "<1-2 sentence overall advice>",
+  "exercises": [
+    {{
+      "exercise": "<name>",
+      "sets": <int>,
+      "weight_kg": <float or null>,
+      "reps": <int or null>,
+      "seconds": <int or null>,
+      "note": "<short coaching note>"
+    }}
+  ]
+}}"""
+            resp = _coach._client.generate_content(prompt)
+            text = resp.text.strip()
+            if "```" in text:
+                text = text[text.find("{"):text.rfind("}")+1]
+            ai_analysis = json.loads(text)
+        except Exception as e:
+            print(f"[AI next-session] Error: {e}")
+            ai_analysis = None
+
+    # ── Compose final response ──────────────────────────────────
+    if ai_analysis and ai_analysis.get("exercises"):
+        return jsonify({
+            "source":       "ai",
+            "workout_name": w_data.get("name", "Session"),
+            "workout_date": w_data.get("workout_date"),
+            "overall_note": ai_analysis.get("overall_note", ""),
+            "exercises":    ai_analysis["exercises"],
+        }), 200
+    else:
+        return jsonify({
+            "source":       "rule_based",
+            "workout_name": w_data.get("name", "Session"),
+            "workout_date": w_data.get("workout_date"),
+            "overall_note": "Progressive overload plan based on your last session.",
+            "exercises":    rule_based,
+        }), 200
+
+
+# Keep the old route as an alias so existing links don't break
+@ai_bp.route("/analyze-workout/<int:workout_id>", methods=["POST"])
+@require_auth
+def analyze_workout_route(workout_id):
+    return next_session_plan(workout_id)
 
 
 @ai_bp.route("/save-template", methods=["POST"])

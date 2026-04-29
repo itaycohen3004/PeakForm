@@ -21,11 +21,6 @@
         <h1 id="welcome-msg">Dashboard</h1>
         <p id="today-schedule" style="color:var(--text-muted);margin-top:4px;font-size:.9rem">Loading...</p>
       </div>
-      <div style="display:flex;gap:var(--space-sm);align-items:center">
-        <div id="notif-btn" style="position:relative;cursor:pointer" onclick="window.location.href='/dashboard.html'">
-          <span style="font-size:1.3rem">🔔</span>
-          <span id="notif-badge" class="nav-badge" style="display:none;position:absolute;top:-6px;right:-6px"></span>
-        </div>
         <a href="/log-workout.html" class="btn btn-primary" id="log-workout-btn">💪 Log Workout</a>
       </div>
     </div>
@@ -166,13 +161,21 @@
           `${draft.name || 'Untitled'} · ${draft.exercises?.length || 0} exercises`;
       }
 
-      // Check notifications
-      try {
-        await apiFetch('/api/notifications/check', { method:'POST' }, false);
-      } catch {}
+      // Check notifications (fire-and-forget, never blocks dashboard)
+      apiFetch('/api/notifications/check', { method:'POST' }, false).catch(()=>{});
 
-      const data = await apiFetch('/api/athletes/dashboard');
-      if (!data || data._error) return;
+      const data = await apiFetch('/api/athletes/dashboard', {}, false);
+      if (!data || data._error) {
+        // Show empty states rather than leaving skeletons forever
+        document.getElementById('goals-list').innerHTML = `<div class="empty-state" style="padding:var(--space-lg)"><div class="empty-icon">🎯</div><p><a href="/achievements.html">Set your first goal</a></p></div>`;
+        document.getElementById('recent-workouts').innerHTML = `<div class="empty-state"><div class="empty-icon">💪</div><h3>No workouts yet</h3><p><a href="/log-workout.html">Log your first session →</a></p></div>`;
+        document.getElementById('comparison-list').innerHTML = `<div style="color:var(--text-muted);font-size:.88rem;text-align:center;padding:var(--space-xl) 0">No data yet</div>`;
+        document.getElementById('unlocked-list').innerHTML = `<div style="color:var(--text-muted);font-size:.88rem;text-align:center;padding:var(--space-xl) 0">Complete your first goal to unlock an achievement! 💪</div>`;
+        document.getElementById('today-schedule').textContent = 'No workout scheduled — log a session or start from a template';
+        document.getElementById('no-volume').style.display = 'block';
+        document.getElementById('volume-chart').style.display = 'none';
+        return;
+      }
 
       // Stats
       document.getElementById('stat-workouts').textContent = data.stats?.total_workouts ?? 0;
@@ -202,118 +205,145 @@
       }
 
       // Volume chart
-      const vol = data.weekly_volume || [];
-      if (vol.length && vol.some(v => (v.total_volume_kg || 0) > 0)) {
-        new Chart(document.getElementById('volume-chart'), {
-          type: 'bar',
-          data: {
-            labels: vol.map(v => v.week?.slice(5) || ''),
-            datasets: [{
-              label: 'Volume (kg)',
-              data: vol.map(v => v.total_volume_kg || 0),
-              backgroundColor: 'rgba(139,92,246,0.5)',
-              borderColor: '#8B5CF6',
-              borderWidth: 1,
-              borderRadius: 6,
-            }]
-          },
-          options: {
-            responsive: true,
-            plugins: { legend: { display: false } },
-            scales: {
-              x: { grid: { color: 'rgba(255,255,255,.04)' }, ticks: { color: '#6B6B80', font: { size: 11 } } },
-              y: { grid: { color: 'rgba(255,255,255,.04)' }, ticks: { color: '#6B6B80', font: { size: 11 } } },
+      try {
+        const vol = data.weekly_volume || [];
+        if (vol.length && vol.some(v => (v.total_volume_kg || 0) > 0)) {
+          new Chart(document.getElementById('volume-chart'), {
+            type: 'bar',
+            data: {
+              labels: vol.map(v => v.week?.slice(5) || ''),
+              datasets: [{
+                label: 'Volume (kg)',
+                data: vol.map(v => v.total_volume_kg || 0),
+                backgroundColor: 'rgba(139,92,246,0.5)',
+                borderColor: '#8B5CF6',
+                borderWidth: 1,
+                borderRadius: 6,
+              }]
+            },
+            options: {
+              responsive: true,
+              plugins: { legend: { display: false } },
+              scales: {
+                x: { grid: { color: 'rgba(255,255,255,.04)' }, ticks: { color: '#6B6B80', font: { size: 11 } } },
+                y: { grid: { color: 'rgba(255,255,255,.04)' }, ticks: { color: '#6B6B80', font: { size: 11 } } },
+              }
             }
-          }
-        });
-      } else {
+          });
+        } else {
+          document.getElementById('volume-chart').style.display = 'none';
+          document.getElementById('no-volume').style.display = 'block';
+        }
+      } catch (e) {
+        console.error('Volume chart error:', e);
         document.getElementById('volume-chart').style.display = 'none';
         document.getElementById('no-volume').style.display = 'block';
       }
 
       // Goals
-      const goalsEl = document.getElementById('goals-list');
-      const goals = data.goals || [];
-      const active = goals.filter(g => !g.is_completed);
-      if (!active.length) {
-        goalsEl.innerHTML = `<div class="empty-state" style="padding:var(--space-lg)"><div class="empty-icon">🎯</div><p><a href="/achievements.html">Set your first goal</a></p></div>`;
-      } else {
-        goalsEl.innerHTML = active.slice(0,4).map(g => {
-          const pct = Math.min(100, Math.round((g.current_value / Math.max(g.target_value, 0.01)) * 100));
-          return `<div class="mb-lg">
-            <div class="flex-between mb-sm">
-              <div style="font-weight:600;font-size:.88rem">${escHtml(g.title)}</div>
-              <span style="font-size:.75rem;color:var(--text-muted)">${g.current_value} / ${g.target_value} ${g.unit||''}</span>
-            </div>
-            <div class="progress-wrap"><div class="progress-bar" style="width:${pct}%"></div></div>
-            <div style="font-size:.7rem;color:var(--text-muted);margin-top:4px">${pct}% complete${g.deadline ? ` · Due ${formatDate(g.deadline)}` : ''}</div>
-          </div>`;
-        }).join('');
+      try {
+        const goalsEl = document.getElementById('goals-list');
+        const goals = data.goals || [];
+        const active = goals.filter(g => !g.is_completed);
+        if (!active.length) {
+          goalsEl.innerHTML = `<div class="empty-state" style="padding:var(--space-lg)"><div class="empty-icon">🎯</div><p><a href="/achievements.html">Set your first goal</a></p></div>`;
+        } else {
+          goalsEl.innerHTML = active.slice(0,4).map(g => {
+            const pct = Math.min(100, Math.round((g.current_value / Math.max(g.target_value, 0.01)) * 100));
+            return `<div class="mb-lg">
+              <div class="flex-between mb-sm">
+                <div style="font-weight:600;font-size:.88rem">${escHtml(g.title)}</div>
+                <span style="font-size:.75rem;color:var(--text-muted)">${g.current_value} / ${g.target_value} ${g.unit||''}</span>
+              </div>
+              <div class="progress-wrap"><div class="progress-bar" style="width:${pct}%"></div></div>
+              <div style="font-size:.7rem;color:var(--text-muted);margin-top:4px">${pct}% complete${g.deadline ? ` · Due ${formatDate(g.deadline)}` : ''}</div>
+            </div>`;
+          }).join('');
+        }
+      } catch (e) {
+        console.error('Goals error:', e);
+        document.getElementById('goals-list').innerHTML = `<div class="empty-state">Error loading goals</div>`;
       }
 
       // Achievements (completed goals)
-      const unlockedEl = document.getElementById('unlocked-list');
-      const unlocked = goals.filter(g => g.is_completed);
-      if (!unlocked.length) {
-        unlockedEl.innerHTML = `<div style="color:var(--text-muted);font-size:.88rem;text-align:center;padding:var(--space-xl) 0">Complete your first goal to unlock an achievement! 💪</div>`;
-      } else {
-        unlockedEl.innerHTML = unlocked.slice(0,4).map(g => `
-          <div class="mb-md" style="display:flex;align-items:center;gap:12px">
-            <div style="font-size:1.8rem">🏆</div>
-            <div>
-              <div style="font-weight:700;font-size:.88rem">${escHtml(g.title)}</div>
-              <div style="font-size:.7rem;color:var(--text-muted)">Achieved ${formatDate(g.completed_at)}</div>
+      try {
+        const unlockedEl = document.getElementById('unlocked-list');
+        const goals = data.goals || [];
+        const unlocked = goals.filter(g => g.is_completed);
+        if (!unlocked.length) {
+          unlockedEl.innerHTML = `<div style="color:var(--text-muted);font-size:.88rem;text-align:center;padding:var(--space-xl) 0">Complete your first goal to unlock an achievement! 💪</div>`;
+        } else {
+          unlockedEl.innerHTML = unlocked.slice(0,4).map(g => `
+            <div class="mb-md" style="display:flex;align-items:center;gap:12px">
+              <div style="font-size:1.8rem">🏆</div>
+              <div>
+                <div style="font-weight:700;font-size:.88rem">${escHtml(g.title)}</div>
+                <div style="font-size:.7rem;color:var(--text-muted)">Achieved ${formatDate(g.completed_at)}</div>
+              </div>
             </div>
-          </div>
-        `).join('');
+          `).join('');
+        }
+      } catch (e) {
+        console.error('Achievements error:', e);
+        document.getElementById('unlocked-list').innerHTML = `<div class="empty-state">Error loading achievements</div>`;
       }
 
       // Progress comparison (last 30 days)
-      const compEl = document.getElementById('comparison-list');
-      const stats = data.stats || {};
-      compEl.innerHTML = `
-        <div class="comparison-row">
-          <div class="comparison-label">Total Volume</div>
-          <div class="comparison-val">${(stats.total_volume_kg || 0).toLocaleString()} kg</div>
-        </div>
-        <div class="comparison-row">
-          <div class="comparison-label">Total Sets</div>
-          <div class="comparison-val">${stats.total_sets || 0}</div>
-        </div>
-        <div class="comparison-row">
-          <div class="comparison-label">Workouts This Week</div>
-          <div class="comparison-val">${stats.workouts_this_week || 0}</div>
-        </div>
-        <div class="comparison-row">
-          <div class="comparison-label">Current Streak</div>
-          <div class="comparison-val">${stats.current_streak || 0} days 🔥</div>
-        </div>
-      `;
-
-      // Recent workouts
-      const rwEl = document.getElementById('recent-workouts');
-      const history = (data.recent_workouts || []).filter(w => w.finished_at);
-      if (!history.length) {
-        rwEl.innerHTML = `<div class="empty-state"><div class="empty-icon">💪</div><h3>No workouts yet</h3><p><a href="/log-workout.html">Log your first session →</a></p></div>`;
-      } else {
-        rwEl.innerHTML = `
-          <div class="table-wrapper">
-            <table class="table">
-              <thead><tr><th>Date</th><th>Workout</th><th>Exercises</th><th>Duration</th><th></th></tr></thead>
-              <tbody>
-                ${history.slice(0,6).map(w => `
-                  <tr>
-                    <td>${formatDate(w.workout_date)}</td>
-                    <td><span style="font-weight:600">${escHtml(w.name || 'Session')}</span></td>
-                    <td>${w.exercise_count || 0} exercises</td>
-                    <td>${formatDuration(w.duration_minutes)}</td>
-                    <td><a href="/workout-detail.html?id=${w.id}" class="btn btn-ghost btn-sm">View →</a></td>
-                  </tr>
-                `).join('')}
-              </tbody>
-            </table>
+      try {
+        const compEl = document.getElementById('comparison-list');
+        const stats = data.stats || {};
+        compEl.innerHTML = `
+          <div class="comparison-row">
+            <div class="comparison-label">Total Volume</div>
+            <div class="comparison-val">${(stats.total_volume_kg || 0).toLocaleString()} kg</div>
+          </div>
+          <div class="comparison-row">
+            <div class="comparison-label">Total Sets</div>
+            <div class="comparison-val">${stats.total_sets || 0}</div>
+          </div>
+          <div class="comparison-row">
+            <div class="comparison-label">Workouts This Week</div>
+            <div class="comparison-val">${stats.workouts_this_week || 0}</div>
+          </div>
+          <div class="comparison-row">
+            <div class="comparison-label">Current Streak</div>
+            <div class="comparison-val">${stats.current_streak || 0} days 🔥</div>
           </div>
         `;
+      } catch (e) {
+        console.error('Comparison error:', e);
+        document.getElementById('comparison-list').innerHTML = `<div class="empty-state">Error loading stats</div>`;
+      }
+
+      // Recent workouts
+      try {
+        const rwEl = document.getElementById('recent-workouts');
+        const history = (data.recent_workouts || []).filter(w => w.finished_at);
+        if (!history.length) {
+          rwEl.innerHTML = `<div class="empty-state"><div class="empty-icon">💪</div><h3>No workouts yet</h3><p><a href="/log-workout.html">Log your first session →</a></p></div>`;
+        } else {
+          rwEl.innerHTML = `
+            <div class="table-wrapper">
+              <table class="table">
+                <thead><tr><th>Date</th><th>Workout</th><th>Exercises</th><th>Duration</th><th></th></tr></thead>
+                <tbody>
+                  ${history.slice(0,6).map(w => `
+                    <tr>
+                      <td>${formatDate(w.workout_date)}</td>
+                      <td><span style="font-weight:600">${escHtml(w.name || 'Session')}</span></td>
+                      <td>${w.exercise_count || 0} exercises</td>
+                      <td>${formatDuration(w.duration_minutes)}</td>
+                      <td><a href="/workout-detail.html?id=${w.id}" class="btn btn-ghost btn-sm">View →</a></td>
+                    </tr>
+                  `).join('')}
+                </tbody>
+              </table>
+            </div>
+          `;
+        }
+      } catch (e) {
+        console.error('Recent workouts error:', e);
+        document.getElementById('recent-workouts').innerHTML = `<div class="empty-state">Error loading recent workouts</div>`;
       }
     });
 

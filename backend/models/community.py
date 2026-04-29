@@ -57,7 +57,7 @@ def delete_post(post_id: int):
 
 def get_comments(post_id: int):
     db = get_db()
-    return db.execute(
+    rows = db.execute(
         """SELECT cc.*, u.email, ap.display_name, ap.avatar_url
            FROM community_comments cc
            JOIN users u ON cc.user_id = u.id
@@ -69,9 +69,9 @@ def get_comments(post_id: int):
     results = []
     for r in rows:
         d = dict(r)
-        d["content"] = decrypt_data(d["content"])
-        d["display_name"] = decrypt_data(d["display_name"])
-        d["email"] = decrypt_data(d["email"])
+        d["content"] = decrypt_data(d.get("content"))
+        d["display_name"] = decrypt_data(d.get("display_name"))
+        d["email"] = decrypt_data(d.get("email"))
         results.append(d)
     return results
 

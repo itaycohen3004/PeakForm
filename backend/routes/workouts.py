@@ -106,10 +106,16 @@ def finish(workout_id):
     duration = data.get("duration_minutes")
     notes = data.get("notes")
     
-    if finish_workout(workout_id, duration, notes):
-        log_action(g.user_id, "workout_finished", f"id={workout_id}", request.remote_addr)
-        return jsonify({"message": "Workout finished and metrics calculated."}), 200
-    return jsonify({"error": "Failed to finish workout"}), 500
+    try:
+        result = finish_workout(workout_id, duration, notes)
+        if result:
+            log_action(g.user_id, "workout_finished", f"id={workout_id}", request.remote_addr)
+            return jsonify({"message": "Workout finished and metrics calculated."}), 200
+        return jsonify({"error": "Workout not found in database"}), 404
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": f"Failed to finish workout: {str(e)}"}), 500
 
 
 @workouts_bp.route("/<int:workout_id>", methods=["DELETE"])

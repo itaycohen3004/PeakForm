@@ -73,8 +73,18 @@
           </div>
         </div>
         <div class="form-group mb-lg">
-          <label class="form-label">Muscles (comma separated)</label>
-          <input type="text" id="custom-muscles" class="form-control" placeholder="chest, triceps">
+          <label class="form-label">Target Muscles (Select multiple)</label>
+          <div class="muscle-tag-grid" id="custom-muscle-tags">
+            <div class="muscle-tag" onclick="toggleMuscleTag(this, 'chest')">Chest</div>
+            <div class="muscle-tag" onclick="toggleMuscleTag(this, 'back')">Back</div>
+            <div class="muscle-tag" onclick="toggleMuscleTag(this, 'shoulders')">Shoulders</div>
+            <div class="muscle-tag" onclick="toggleMuscleTag(this, 'arms')">Arms</div>
+            <div class="muscle-tag" onclick="toggleMuscleTag(this, 'legs')">Legs</div>
+            <div class="muscle-tag" onclick="toggleMuscleTag(this, 'core')">Core</div>
+            <div class="muscle-tag" onclick="toggleMuscleTag(this, 'skill')">Skill</div>
+            <div class="muscle-tag" onclick="toggleMuscleTag(this, 'cardio')">Cardio</div>
+          </div>
+          <div style="font-size:0.75rem;color:var(--text-muted);margin-top:8px">This exercise will be categorized under all selected muscle groups.</div>
         </div>
         <button type="submit" class="btn btn-primary btn-full">Create Exercise</button>
       </form>
@@ -114,32 +124,53 @@
           return;
         }
         grid.innerHTML = data.map(ex => `
-          <div class="card card-sm" style="cursor:pointer" onclick="window.location='/progress.html?exercise_id=${ex.id}'">
+          <div class="card card-sm">
             <div class="flex-between mb-sm">
               <span style="font-size:1.3rem">${categoryIcon(ex.category)}</span>
               ${setTypeBadge(ex.set_type)}
             </div>
-            <div style="font-weight:700;font-size:.95rem;margin-bottom:4px">${ex.name}</div>
-            <div style="font-size:.75rem;color:var(--text-muted)">${ex.category.replace('_',' ')} · ${ex.muscles||''}</div>
+            <div style="font-weight:700;font-size:.95rem;margin-bottom:4px">
+              ${ex.name} 
+              ${ex.status === 'pending' ? '<span class="badge badge-amber" style="font-size:0.6rem;padding:2px 4px">Pending</span>' : ''}
+            </div>
+            <div style="font-size:.75rem;color:var(--text-muted)">${ex.category.replace('_',' ')} · ${ex.muscles_tags || ex.muscles || ''}</div>
             ${ex.equipment ? `<div style="font-size:.7rem;color:var(--text-xmuted);margin-top:4px">🛠 ${ex.equipment}</div>` : ''}
           </div>
         `).join('');
       }, 200);
     }
 
+    function toggleMuscleTag(el, tag) {
+      el.classList.toggle('active');
+    }
+
     async function createCustom(e) {
       e.preventDefault();
+      
+      const selectedTags = Array.from(document.querySelectorAll('#custom-muscle-tags .muscle-tag.active'))
+        .map(el => el.textContent.toLowerCase());
+
+      if (!selectedTags.length) {
+        showToast('Please select at least one muscle group', 'warning');
+        return;
+      }
+
+      const musclesInput = selectedTags.join(', ');
+      
       const res = await apiFetch('/api/exercises/custom', {
         method: 'POST',
         body: {
-          name:     document.getElementById('custom-name').value.trim(),
-          category: document.getElementById('custom-cat').value,
-          set_type: document.getElementById('custom-stype').value,
-          muscles:  document.getElementById('custom-muscles').value.trim(),
+          name:         document.getElementById('custom-name').value.trim(),
+          category:     document.getElementById('custom-cat').value,
+          set_type:     document.getElementById('custom-stype').value,
+          muscles:      musclesInput,
+          muscles_tags: musclesInput,
         }
       });
       if (!res._error) {
-        showToast('Custom exercise created!','success');
+        showToast(res.message || 'Custom exercise created!', 'success');
+        // Reset tags
+        document.querySelectorAll('#custom-muscle-tags .muscle-tag').forEach(el => el.classList.remove('active'));
         closeModal('custom-modal');
         loadExercises();
       }
