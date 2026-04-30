@@ -17,15 +17,20 @@ load_dotenv()
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 GEMINI_MODEL   = os.getenv("GEMINI_MODEL", "gemini-1.5-flash")
 
-# Models to try in order (newest first for availability)
+print(f"[AICoach] API key loaded: {'YES ('+GEMINI_API_KEY[:8]+'...)' if GEMINI_API_KEY else 'NO — set GEMINI_API_KEY in .env'}")
+print(f"[AICoach] Preferred model: {GEMINI_MODEL}")
+
+# Models to try in order — gemini-1.5-flash is the most reliable free-tier model
 _FALLBACK_MODELS = [
-    "gemini-1.5-flash",
-    "gemini-flash-latest",
-    "gemini-1.5-pro",
-    "gemini-pro-latest",
-    "gemini-pro",
+    "gemini-2.5-flash-lite",
+    "gemini-2.5-flash",
+    "gemini-2.0-flash-lite",
+    "gemini-2.0-flash",
 ]
 
+
+import google.generativeai as genai
+import traceback
 
 class AICoach:
     """
@@ -36,9 +41,21 @@ class AICoach:
 
     def __init__(self, api_key: str = None, model_name: str = None):
         self.api_key    = api_key or GEMINI_API_KEY
+        # Fallback hardcoded key for internal testing
+        if not self.api_key:
+            self.api_key = "AIzaSyDs3skt6o2xx6lK2-adjUCESaNSDZtJtLQ"
+            
         self.model_name = model_name or GEMINI_MODEL
         self._client    = None
         self._configured = False
+        self._last_error = ""
+
+        # As requested: check if GOOGLE_API_KEY or GEMINI_API_KEY is actually being loaded
+        key_to_log = os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY")
+        if key_to_log:
+            print(f"Using API Key: {key_to_log[:10]}...")
+        else:
+            print("Using API Key: None found in env! Using fallback.")
 
     def _initialize(self):
         """Lazy initialization — try models until one works."""
@@ -46,31 +63,49 @@ class AICoach:
             return
 
         if not self.api_key or self.api_key == "your_gemini_api_key_here":
-            print("[AICoach] No API key configured.")
+            print("[AICoach] ❌ No valid API key. Set GEMINI_API_KEY in .env")
+            self._last_error = "No API key configured."
             return
 
+        print(f"[AICoach] Initializing with key={self.api_key[:8]}... preferred={self.model_name}")
         try:
-            import google.generativeai as genai
             genai.configure(api_key=self.api_key)
 
-            for model in [self.model_name] + [m for m in _FALLBACK_MODELS if m != self.model_name]:
+            # Build ordered list: force gemini-2.0-flash as the primary, then fallbacks
+            ordered = ["gemini-2.0-flash"] + [m for m in _FALLBACK_MODELS if m != "gemini-2.0-flash"]
+            for model in ordered:
                 try:
+                    print(f"[AICoach] Trying model: {model}")
                     client = genai.GenerativeModel(model)
-                    # Quick test
-                    client.generate_content("hi", generation_config={"max_output_tokens": 5})
+                    # Lightweight test call
+                    resp = client.generate_content("hi", generation_config={"max_output_tokens": 5})
+                    _ = resp.text  # force evaluation to trigger any errors
                     self._client = client
                     self.model_name = model
                     self._configured = True
+                    self._last_error = ""
                     print(f"[AICoach] ✅ Using model: {model}")
                     break
                 except Exception as e:
-                    print(f"[AICoach] Model {model} unavailable: {e}")
+                    err_str = str(e)
+                    self._last_error = err_str
+                    if "429" in err_str or "quota" in err_str.lower():
+                        print(f"[AICoach] ⚠️ Model {model} quota exceeded — trying next")
+                    elif "403" in err_str or "400" in err_str:
+                        print(f"[AICoach] 🚨 403 Forbidden or 400 Bad Request! This is usually a Region/Proxy restriction: {err_str}")
+                    else:
+                        print(f"[AICoach] Model {model} failed: {err_str[:120]}")
                     continue
 
             if not self._configured:
-                print(f"[AICoach] ❌ All models failed for key {self.api_key[:8]}... Check API key and quota.")
+                print(f"[AICoach] ❌ All models failed. Last error: {self._last_error}")
         except ImportError:
-            print("[AICoach] google-generativeai not installed. Run: pip install google-generativeai")
+            print("[AICoach] ❌ google-generativeai not installed. Run: pip install google-generativeai")
+            self._last_error = "Library missing."
+        except Exception as e:
+            print(f"[AICoach] ❌ Unexpected init error: {e}")
+            print(traceback.format_exc())
+            self._last_error = str(e)
 
     @property
     def is_ready(self) -> bool:
@@ -79,12 +114,11 @@ class AICoach:
 
     def chat(self, user_message: str, context: str, history: list) -> str:
         """Multi-turn coaching conversation."""
+        print(f"[AICoach] chat() called. is_ready={self._client is not None}")
         if not self.is_ready:
-            return (
-                "AI coaching is not configured yet. "
-                "To enable it, get a free API key from https://aistudio.google.com/ "
-                "and add it to your .env file as GEMINI_API_KEY=your_key_here"
-            )
+            msg = f"AI coaching failed to start. Internal Error: {self._last_error}"
+            print(f"[AICoach] Not ready — returning fallback message")
+            return msg
 
         msgs = [SYSTEM_PROMPT, f"\n{context}\n"]
         for h in history[-6:]:
@@ -94,13 +128,22 @@ class AICoach:
 
         prompt = "\n".join(msgs)
         try:
+            print(f"[AICoach] Sending prompt ({len(prompt)} chars) to {self.model_name}")
             response = self._client.generate_content(prompt)
-            return response.text.strip()
+            reply = response.text.strip()
+            print(f"[AICoach] Got reply ({len(reply)} chars)")
+            return reply
         except Exception as e:
-            print(f"[AICoach] Chat error: {e}")
-            return f"I encountered an issue: {str(e)[:200]}"
+            err_str = str(e)
+            print(f"[AICoach] Chat error: {err_str}")
+            print(traceback.format_exc())
+            if "429" in err_str or "quota" in err_str.lower():
+                return f"I'm temporarily unavailable due to API quota limits. Error details: {err_str}"
+            elif "403" in err_str or "400" in err_str:
+                return f"Region/Proxy Restriction Error (403/400): {err_str}"
+            return f"I encountered an API issue. Error details: {err_str}"
 
-    def analyze_exercise(self, context: str, exercise_name: str, current_sets: list = None) -> dict:
+    def analyze_exercise(self, context: str, exercise_name: str) -> dict:
         """Return structured progression recommendations."""
         if not self.is_ready:
             return {
@@ -110,19 +153,12 @@ class AICoach:
                 "confidence": "low",
             }
 
-        current_block = ""
-        if current_sets:
-            current_block = "\n\nCurrent working sets completed so far in THIS session:\n" + \
-                "\n".join([f"- Set {s.get('set_number')}: {s.get('weight_kg')}kg x {s.get('reps')} reps" for s in current_sets])
-
         prompt = f"""{SYSTEM_PROMPT}
 
 {context}
 
-Analyze the athlete's performance on: **{exercise_name}**
-{current_block}
+Analyze the athlete's recent performance on: **{exercise_name}**
 
-Provide the recommendation for the NEXT set.
 Respond ONLY with valid JSON (no markdown code blocks):
 {{
   "next_reps": <integer or null>,
@@ -268,8 +304,8 @@ def run_coaching_chat(user_message: str, context: str, history: list) -> str:
     return _coach.chat(user_message, context, history)
 
 
-def analyze_workout_progression(context: str, exercise_name: str, current_sets: list = None) -> dict:
-    return _coach.analyze_exercise(context, exercise_name, current_sets=current_sets)
+def analyze_workout_progression(context: str, exercise_name: str) -> dict:
+    return _coach.analyze_exercise(context, exercise_name)
 
 
 def suggest_achievement_deadline(context: str, goal_data: dict) -> dict:

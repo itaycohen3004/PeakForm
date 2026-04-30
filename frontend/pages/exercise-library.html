@@ -54,7 +54,7 @@
         </div>
         <div class="form-row mb-md">
           <div class="form-group">
-            <label class="form-label">Category</label>
+            <label class="form-label">Primary Category</label>
             <select id="custom-cat" class="form-control">
               <option value="chest">Chest</option><option value="back">Back</option>
               <option value="shoulders">Shoulders</option><option value="arms">Arms</option>
@@ -72,21 +72,42 @@
             </select>
           </div>
         </div>
+        <!-- Multi-muscle toggle grid -->
         <div class="form-group mb-lg">
-          <label class="form-label">Target Muscles (Select multiple)</label>
-          <div class="muscle-tag-grid" id="custom-muscle-tags">
-            <div class="muscle-tag" onclick="toggleMuscleTag(this, 'chest')">Chest</div>
-            <div class="muscle-tag" onclick="toggleMuscleTag(this, 'back')">Back</div>
-            <div class="muscle-tag" onclick="toggleMuscleTag(this, 'shoulders')">Shoulders</div>
-            <div class="muscle-tag" onclick="toggleMuscleTag(this, 'arms')">Arms</div>
-            <div class="muscle-tag" onclick="toggleMuscleTag(this, 'legs')">Legs</div>
-            <div class="muscle-tag" onclick="toggleMuscleTag(this, 'core')">Core</div>
-            <div class="muscle-tag" onclick="toggleMuscleTag(this, 'skill')">Skill</div>
-            <div class="muscle-tag" onclick="toggleMuscleTag(this, 'cardio')">Cardio</div>
+          <label class="form-label">Muscle Groups Worked <span style="font-size:0.7rem;color:var(--text-muted)">(select all that apply)</span></label>
+          <div id="muscle-toggle-grid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:8px">
+            <button type="button" class="muscle-toggle-btn" data-muscle="chest" onclick="toggleMuscle(this)">💪 Chest</button>
+            <button type="button" class="muscle-toggle-btn" data-muscle="back" onclick="toggleMuscle(this)">🔙 Back</button>
+            <button type="button" class="muscle-toggle-btn" data-muscle="shoulders" onclick="toggleMuscle(this)">🎯 Shoulders</button>
+            <button type="button" class="muscle-toggle-btn" data-muscle="triceps" onclick="toggleMuscle(this)">💥 Triceps</button>
+            <button type="button" class="muscle-toggle-btn" data-muscle="biceps" onclick="toggleMuscle(this)">🦾 Biceps</button>
+            <button type="button" class="muscle-toggle-btn" data-muscle="forearms" onclick="toggleMuscle(this)">🤜 Forearms</button>
+            <button type="button" class="muscle-toggle-btn" data-muscle="quads" onclick="toggleMuscle(this)">🦵 Quads</button>
+            <button type="button" class="muscle-toggle-btn" data-muscle="hamstrings" onclick="toggleMuscle(this)">🦵 Hamstrings</button>
+            <button type="button" class="muscle-toggle-btn" data-muscle="glutes" onclick="toggleMuscle(this)">🍑 Glutes</button>
+            <button type="button" class="muscle-toggle-btn" data-muscle="calves" onclick="toggleMuscle(this)">🦶 Calves</button>
+            <button type="button" class="muscle-toggle-btn" data-muscle="core" onclick="toggleMuscle(this)">🔥 Core</button>
+            <button type="button" class="muscle-toggle-btn" data-muscle="traps" onclick="toggleMuscle(this)">🏔️ Traps</button>
           </div>
-          <div style="font-size:0.75rem;color:var(--text-muted);margin-top:8px">This exercise will be categorized under all selected muscle groups.</div>
+          <div style="font-size:0.75rem;color:var(--text-muted);margin-top:8px">Selected: <span id="selected-muscles-preview" style="color:var(--violet-l)">None</span></div>
         </div>
-        <button type="submit" class="btn btn-primary btn-full">Create Exercise</button>
+        <!-- Equipment Needed (Multi-Select) -->
+        <div class="form-group mb-md">
+          <label class="form-label">Equipment Needed <span style="font-size:.75rem;color:var(--text-muted)">(select all that apply)</span></label>
+          <div id="equipment-grid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:8px">
+            <button type="button" class="muscle-toggle-btn" data-equip="bodyweight" onclick="toggleEquip(this)">🤸 Bodyweight</button>
+            <button type="button" class="muscle-toggle-btn" data-equip="barbell" onclick="toggleEquip(this)">🌪️ Barbell</button>
+            <button type="button" class="muscle-toggle-btn" data-equip="dumbbell" onclick="toggleEquip(this)">💪 Dumbbell</button>
+            <button type="button" class="muscle-toggle-btn" data-equip="cable" onclick="toggleEquip(this)">🔗 Cable</button>
+            <button type="button" class="muscle-toggle-btn" data-equip="machine" onclick="toggleEquip(this)">⚙️ Machine</button>
+            <button type="button" class="muscle-toggle-btn" data-equip="kettlebell" onclick="toggleEquip(this)">🔔 Kettlebell</button>
+            <button type="button" class="muscle-toggle-btn" data-equip="resistance_band" onclick="toggleEquip(this)">🏎️ Band</button>
+            <button type="button" class="muscle-toggle-btn" data-equip="pull_up_bar" onclick="toggleEquip(this)">🛠️ Pull-Up Bar</button>
+            <button type="button" class="muscle-toggle-btn" data-equip="bench" onclick="toggleEquip(this)">🛋️ Bench</button>
+          </div>
+          <div style="font-size:.75rem;color:var(--text-muted);margin-top:8px">Selected: <span id="selected-equip-preview" style="color:var(--accent-teal)">None</span></div>
+        </div>
+        <button type="submit" class="btn btn-primary btn-full">Submit for Approval</button>
       </form>
     </div>
   </div>
@@ -94,6 +115,26 @@
   <div id="toast-container" class="toast-container"></div>
   <script src="/static/js/utils.js"></script>
   <script src="/static/js/api.js"></script>
+  <style>
+    .muscle-toggle-btn {
+      padding: 8px 6px;
+      font-size: 0.78rem;
+      font-weight: 600;
+      border: 1px solid var(--bg-border);
+      border-radius: var(--radius-sm);
+      background: var(--bg-surface);
+      color: var(--text-muted);
+      cursor: pointer;
+      transition: all 0.15s ease;
+      text-align: center;
+    }
+    .muscle-toggle-btn:hover { border-color: var(--violet); color: var(--text-primary); }
+    .muscle-toggle-btn.active {
+      background: rgba(139,92,246,0.15);
+      border-color: var(--violet);
+      color: var(--violet-l);
+    }
+  </style>
   <script>
     let currentCategory = '';
 
@@ -101,6 +142,20 @@
       requireAuth(); renderSidebar(); initMobileSidebar();
       loadExercises();
     });
+
+    function toggleMuscle(btn) {
+      btn.classList.toggle('active');
+      const selected = Array.from(document.querySelectorAll('#muscle-toggle-grid .muscle-toggle-btn.active'))
+        .map(b => b.dataset.muscle);
+      document.getElementById('selected-muscles-preview').textContent = selected.length ? selected.join(', ') : 'None';
+    }
+
+    function toggleEquip(btn) {
+      btn.classList.toggle('active');
+      const selected = Array.from(document.querySelectorAll('#equipment-grid .muscle-toggle-btn.active'))
+        .map(b => b.dataset.equip);
+      document.getElementById('selected-equip-preview').textContent = selected.length ? selected.join(', ') : 'None';
+    }
 
     function setCategory(cat, btn) {
       currentCategory = cat;
@@ -140,38 +195,40 @@
       }, 200);
     }
 
-    function toggleMuscleTag(el, tag) {
-      el.classList.toggle('active');
-    }
-
     async function createCustom(e) {
       e.preventDefault();
-      
-      const selectedTags = Array.from(document.querySelectorAll('#custom-muscle-tags .muscle-tag.active'))
-        .map(el => el.textContent.toLowerCase());
-
-      if (!selectedTags.length) {
+      const selectedMuscles = Array.from(document.querySelectorAll('#muscle-toggle-grid .muscle-toggle-btn.active'))
+        .map(b => b.dataset.muscle);
+      if (!selectedMuscles.length) {
         showToast('Please select at least one muscle group', 'warning');
         return;
       }
+      const selectedEquip = Array.from(document.querySelectorAll('#equipment-grid .muscle-toggle-btn.active'))
+        .map(b => b.dataset.equip);
+      const muscleTagStr = selectedMuscles.join(', ');
+      const equipStr    = selectedEquip.length ? selectedEquip.join(', ') : 'bodyweight';
+      const primaryCat  = document.getElementById('custom-cat').value;
 
-      const musclesInput = selectedTags.join(', ');
-      
       const res = await apiFetch('/api/exercises/custom', {
         method: 'POST',
         body: {
           name:         document.getElementById('custom-name').value.trim(),
-          category:     document.getElementById('custom-cat').value,
+          category:     primaryCat,
           set_type:     document.getElementById('custom-stype').value,
-          muscles:      musclesInput,
-          muscles_tags: musclesInput,
+          muscles:      muscleTagStr,
+          muscles_tags: muscleTagStr,
+          equipment:    equipStr,
         }
       });
       if (!res._error) {
-        showToast(res.message || 'Custom exercise created!', 'success');
-        // Reset tags
-        document.querySelectorAll('#custom-muscle-tags .muscle-tag').forEach(el => el.classList.remove('active'));
+        showToast(res.message || 'Exercise submitted for admin approval!', 'success');
         closeModal('custom-modal');
+        // Reset all toggles
+        document.querySelectorAll('#muscle-toggle-grid .muscle-toggle-btn.active, #equipment-grid .muscle-toggle-btn.active')
+          .forEach(b => b.classList.remove('active'));
+        document.getElementById('selected-muscles-preview').textContent = 'None';
+        document.getElementById('selected-equip-preview').textContent   = 'None';
+        document.getElementById('custom-name').value = '';
         loadExercises();
       }
     }

@@ -11,7 +11,6 @@ from backend.models.exercise import (
     get_last_session,
 )
 from backend.services.encryption_service import decrypt_data
-from backend.models.db import get_db
 
 exercises_bp = Blueprint("exercises", __name__, url_prefix="/api/exercises")
 
@@ -63,18 +62,7 @@ def detail(exercise_id):
 @require_auth
 @require_admin
 def approve(exercise_id):
-    info = approve_exercise(exercise_id)
-    if info:
-        # Create notification for the creator
-        try:
-            db = get_db()
-            db.execute(
-                "INSERT INTO notifications (user_id, title, message) VALUES (?, ?, ?)",
-                (info["created_by"], "Exercise Approved! 🎉", f"Your custom exercise '{info['name']}' has been approved and is now live in the library.")
-            )
-            db.commit()
-        except Exception:
-            pass # Fail gracefully if notification fails
+    approve_exercise(exercise_id)
     return jsonify({"message": "Exercise approved."}), 200
 
 

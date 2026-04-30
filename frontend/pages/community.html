@@ -58,6 +58,28 @@
     </div>
   </div>
 
+  <!-- Share to Chat Modal -->
+  <div class="modal-backdrop" id="share-chat-modal"
+       style="display:none;z-index:600"
+       onclick="if(event.target===this)closeShareChatModal()">
+    <div class="modal" style="max-width:420px">
+      <div class="modal-header">
+        <h3 class="modal-title">💬 Share to Chat</h3>
+        <button class="modal-close" onclick="closeShareChatModal()">✕</button>
+      </div>
+      <p style="font-size:.85rem;color:var(--text-muted);margin-bottom:12px">Select a chat room to share this post:</p>
+      <div id="share-chat-room-list" style="display:flex;flex-direction:column;gap:8px;max-height:260px;overflow-y:auto;margin-bottom:var(--space-md)"></div>
+      <div class="form-group mb-md">
+        <label class="form-label">Add a note (optional)</label>
+        <input type="text" id="share-chat-note" class="form-control" placeholder="Check this out...">
+      </div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-ghost btn-full" onclick="closeShareChatModal()">Cancel</button>
+        <button class="btn btn-primary btn-full" onclick="confirmShareToChat()">📎 Share</button>
+      </div>
+    </div>
+  </div>
+
   <div id="toast-container" class="toast-container"></div>
   <script src="/static/js/utils.js"></script>
   <script src="/static/js/api.js"></script>
@@ -65,7 +87,13 @@
     let postType = 'achievement', PAGE_OFFSET = 0, PAGE_LIMIT = 20;
     const user = getUser() || {};
 
-    onReady(async () => { requireAuth(); renderSidebar(); initMobileSidebar(); await loadFeed(true); });
+    onReady(async () => {
+      requireAuth(); renderSidebar(); initMobileSidebar();
+      // Handle chat prefill toast if redirected back
+      const chatShare = sessionStorage.getItem('chat_share_post');
+      if (chatShare) { sessionStorage.removeItem('chat_share_post'); }
+      await loadFeed(true);
+    });
 
     function setPostType(btn) {
       document.querySelectorAll('.type-pill').forEach(p=>p.classList.remove('selected'));
@@ -84,8 +112,27 @@
 
     function loadMore() { loadFeed(false); }
 
-    const POST_TYPE_ICONS = { update:'📢', achievement:'🏆', question:'❓', tip:'💡', progress_photo:'📸' };
-    const POST_TYPE_COLORS = { achievement:'badge-amber', question:'badge-teal', tip:'badge-green', update:'badge-violet', progress_photo:'badge-violet' };
+    const POST_TYPE_ICONS = { update:'📢', achievement:'🏆', question:'❓', tip:'💡', progress_photo:'📸', template:'📋' };
+    const POST_TYPE_COLORS = { achievement:'badge-amber', question:'badge-teal', tip:'badge-green', update:'badge-violet', progress_photo:'badge-violet', template:'badge-teal' };
+
+    async function saveTemplateFromPost(meta) {
+      if (!meta || !meta.exercises || !meta.exercises.length) {
+        showToast('No exercises found in this template', 'warning');
+        return;
+      }
+      const name = meta.template_name || 'Shared Template';
+      const res = await apiFetch('/api/templates', {
+        method: 'POST',
+        body: {
+          name,
+          training_type: meta.training_type || 'gym',
+          exercises: meta.exercises.map(e => ({ name: e.name, default_sets: e.default_sets || 3 }))
+        }
+      });
+      if (!res._error) {
+        showToast(`"${name}" saved to your Templates!`, 'success');
+      }
+    }
 
     function appendPost(p) {
       const div = document.createElement('div');
@@ -94,15 +141,39 @@
       const initials = (p.display_name || p.email || '?').substring(0,2).toUpperCase();
       const isOwn = p.user_id === user.user_id;
 
-      // Achievement/Workout posts get special card styles
+      // Template posts get a workout-plan card
       let bodyHtml;
-      if (p.post_type === 'achievement' && p.content.includes('Achievement Unlocked:')) {
+      if (p.post_type === 'template' && p.meta_data) {
+        let meta = {};
+        try { meta = typeof p.meta_data === 'string' ? JSON.parse(p.meta_data) : p.meta_data; } catch(_) {}
+        const exItems = (meta.exercises || []).map(e =>
+          `<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid rgba(139,92,246,.1)">
+            <span style="font-size:.9rem">💪</span>
+            <span style="flex:1;font-size:.85rem">${escapeHtml(e.name)}</span>
+            <span style="font-size:.75rem;color:var(--text-muted)">${e.default_sets || 3} sets</span>
+          </div>`
+        ).join('');
+        const metaStr = JSON.stringify(meta).replace(/"/g, '&quot;');
+        bodyHtml = `
+          <div style="background:linear-gradient(145deg,rgba(20,184,166,.08),rgba(139,92,246,.06));border:1px solid rgba(20,184,166,.25);border-radius:12px;padding:16px;margin:12px 0;border-left:4px solid var(--accent-teal)">
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+              <div style="font-size:2rem">📋</div>
+              <div>
+                <div style="font-weight:900;font-size:1rem">${escapeHtml(meta.template_name || 'Workout Template')}</div>
+                <div style="font-size:.75rem;color:var(--text-muted);margin-top:2px">${(meta.exercises||[]).length} exercises · ${meta.training_type || 'gym'}</div>
+              </div>
+            </div>
+            <div style="margin-bottom:12px">${exItems || '<div style="color:var(--text-muted);font-size:.8rem">No exercises listed</div>'}</div>
+            ${!isOwn ? `<button class="btn btn-primary btn-sm" onclick='saveTemplateFromPost(${metaStr})'>💾 Save Template</button>` : '<span style="font-size:.75rem;color:var(--text-muted)">Your template</span>'}
+          </div>`;
+      } else if (p.post_type === 'achievement') {
+        // Parse the structured text back to parts
         const lines = (p.content || '').split('\n').filter(Boolean);
         const titleLine = lines.find(l => l.startsWith('🏆 Achievement Unlocked:')) || lines[0] || '';
         const achievTitle = titleLine.replace('🏆 Achievement Unlocked:', '').trim();
         const exerciseLine = lines.find(l => l.startsWith('Exercise:')) || '';
         const resultLine   = lines.find(l => l.startsWith('Result:'))   || '';
-        const captionLines = lines.filter(l => 
+        const captionLines = lines.filter(l =>
           !l.startsWith('🏆') && !l.startsWith('Exercise:') && !l.startsWith('Result:') && !l.startsWith('Date:')
         );
 
@@ -117,43 +188,6 @@
             </div>
             ${resultLine ? `<div style="font-size:1.2rem;font-weight:900;color:var(--amber);margin-bottom:8px">${escapeHtml(resultLine.replace('Result:','').trim())}</div>` : ''}
             ${captionLines.length ? `<div style="font-size:.88rem;color:var(--text-secondary);padding-top:8px;border-top:1px solid rgba(245,158,11,.15)">${captionLines.map(l=>escapeHtml(l)).join('<br>')}</div>` : ''}
-            ${p.media_path ? `<img src="${p.media_path}" style="width:100%;border-radius:8px;margin-top:10px;object-fit:cover;max-height:240px;display:block">` : ''}
-          </div>`;
-      } else if (p.content.startsWith('🏋️ Workout Completed:')) {
-        const lines = (p.content || '').split('\n').filter(Boolean);
-        const titleLine = lines.find(l => l.startsWith('🏋️ Workout Completed:')) || '';
-        const workoutName = titleLine.replace('🏋️ Workout Completed:', '').trim();
-        const statsLines = lines.filter(l => l.startsWith('Duration:') || l.startsWith('Volume:'));
-        const detailLines = lines.filter(l => l.startsWith('Detailed Breakdown:') || l.startsWith('- Set ') || l.startsWith('**'));
-        const captionLines = lines.filter(l => 
-          !l.startsWith('🏋️') && !l.startsWith('Duration:') && !l.startsWith('Volume:') && 
-          !l.startsWith('Detailed Breakdown:') && !l.startsWith('- Set ') && !l.startsWith('**')
-        );
-
-        bodyHtml = `
-          <div style="background:rgba(139,92,246,0.05);border:1px solid rgba(139,92,246,0.2);border-radius:12px;padding:16px;margin:12px 0;border-left:4px solid var(--violet)">
-            <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
-              <div style="font-size:2rem">🏋️</div>
-              <div>
-                <div style="font-weight:900;font-size:1.1rem;color:var(--text)">${escapeHtml(workoutName)}</div>
-                <div style="font-size:.75rem;color:var(--text-muted)">${statsLines.map(l=>escapeHtml(l)).join(' · ')}</div>
-              </div>
-            </div>
-            
-            <div style="background:rgba(0,0,0,0.1);border-radius:8px;padding:10px;font-size:0.8rem;color:var(--text-secondary);margin-bottom:8px">
-              ${detailLines.map(l => {
-                if (l.startsWith('**')) return `<div style="font-weight:700;color:var(--text);margin-top:8px">${escapeHtml(l.replace(/\*\*/g,''))}</div>`;
-                if (l.startsWith('- Set ')) return `<div style="margin-left:8px;opacity:0.8">${escapeHtml(l)}</div>`;
-                return `<div style="font-weight:600;margin-bottom:4px;color:var(--violet-l)">${escapeHtml(l)}</div>`;
-              }).join('')}
-            </div>
-
-            ${captionLines.length ? `<div style="font-size:.9rem;color:var(--text-secondary);margin:12px 0">${captionLines.map(l=>escapeHtml(l)).join('<br>')}</div>` : ''}
-            
-            <button class="btn btn-ghost btn-sm" onclick="sendToCoach(this, ${p.id})" style="width:100%;margin-top:10px;border:1px dashed var(--violet-l);color:var(--violet-l)">
-              💬 Send to AI Coach for Feedback
-            </button>
-
             ${p.media_path ? `<img src="${p.media_path}" style="width:100%;border-radius:8px;margin-top:10px;object-fit:cover;max-height:240px;display:block">` : ''}
           </div>`;
       } else {
@@ -179,9 +213,15 @@
           <button class="post-action-btn" onclick="openComments(${p.id})">
             💬 <span>${p.comment_count||0}</span> Comments
           </button>
+          <button class="post-action-btn" onclick="sharePostToChat(${p.id})" data-content="${escapeHtml(p.content||'').substring(0,400)}" data-type="${p.post_type||'update'}" id="share-btn-${p.id}" title="Share to chat">
+            📎 Share
+          </button>
         </div>
       `;
       document.getElementById('feed').appendChild(div);
+      // Attach content via JS to avoid HTML injection issues
+      const shareBtn = document.getElementById(`share-btn-${p.id}`);
+      if (shareBtn) shareBtn._postData = { id: p.id, content: p.content, type: p.post_type };
     }
 
     async function submitPost() {
@@ -241,34 +281,108 @@
       document.getElementById(`post-${postId}`)?.remove();
     }
 
-    function escapeHtml(s) { return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>'); }
-    
-    async function sendToCoach(btn, postId) {
-      const p = _posts.find(x => x.id === postId);
-      if (!p) return;
+    let _sharePostData = null;
 
-      btn.disabled = true;
-      btn.innerHTML = `⌛ Sending...`;
+    async function sharePostToChat(postId) {
+      // Read post data from the button's _postData property (set after DOM append)
+      const btn = document.getElementById(`share-btn-${postId}`);
+      const data = btn?._postData || { id: postId, content: '', type: 'update' };
+      _sharePostData = { postId: data.id, content: data.content || '', postType: data.type || 'update' };
+      document.getElementById('share-chat-note').value = '';
+
+      // Show modal (display:flex centres it via modal-backdrop styles)
+      const modal = document.getElementById('share-chat-modal');
+      modal.style.display = 'flex';
+
+      // Load available rooms
+      const roomListEl = document.getElementById('share-chat-room-list');
+      roomListEl.innerHTML = '<div style="color:var(--text-muted);font-size:.85rem">Loading rooms…</div>';
 
       try {
-        const msg = `Hey Coach, I just shared this workout to the feed. Can you give me some feedback and suggest what I should focus on next time?\n\n${p.content}`;
-        const res = await apiFetch('/api/ai/chat', {
-          method: 'POST',
-          body: { message: msg }
-        });
-
-        if (!res._error) {
-          showToast('Sent to Coach! Go to the AI Coach tab to see the feedback. 🤖', 'success');
-          btn.innerHTML = `✅ Sent to Coach`;
-        } else {
-          btn.disabled = false;
-          btn.innerHTML = `💬 Send to AI Coach for Feedback`;
+        const rooms = await apiFetch('/api/chat/rooms', {}, false);
+        if (!rooms || rooms._error || !rooms.length) {
+          roomListEl.innerHTML = '<div style="color:var(--text-muted);font-size:.85rem">No chat rooms available.</div>';
+          return;
         }
-      } catch (err) {
-        btn.disabled = false;
-        btn.innerHTML = `💬 Send to AI Coach for Feedback`;
+        _sharePostData._rooms = rooms;
+        roomListEl.innerHTML = rooms.map(r => `
+          <label style="display:flex;align-items:center;gap:10px;padding:10px;background:var(--bg-card);border:1px solid var(--bg-border);border-radius:var(--radius-sm);cursor:pointer">
+            <input type="checkbox" value="${r.id}" style="accent-color:var(--violet);width:16px;height:16px;flex-shrink:0">
+            <div>
+              <div style="font-weight:600;font-size:.9rem">${escapeHtml(r.name)}</div>
+              <div style="font-size:.7rem;color:var(--text-muted)">${r.member_count || 0} members</div>
+            </div>
+          </label>
+        `).join('');
+      } catch(e) {
+        roomListEl.innerHTML = '<div style="color:var(--text-muted)">Could not load rooms.</div>';
       }
     }
+
+    async function confirmShareToChat() {
+      if (!_sharePostData) return;
+      const checked = Array.from(document.querySelectorAll('#share-chat-room-list input[type=checkbox]:checked'));
+      if (!checked.length) { showToast('Please select at least one room', 'warning'); return; }
+
+      const note = document.getElementById('share-chat-note').value.trim();
+      const { postId, content, postType } = _sharePostData;
+
+      // Format content: preserve existing newlines, truncate if very long
+      const truncated = content.length > 500 ? content.substring(0, 497) + '…' : content;
+      // Normalise line breaks so each exercise/set appears on its own line
+      const formattedContent = truncated.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+
+      let lines = ['📎 Shared from Community Feed:'];
+      if (postType === 'template') lines.push('📋 Template Post');
+      if (note) lines.push(`💬 "${note}"`);
+      lines.push('─'.repeat(28));
+      lines.push(...formattedContent.split('\n').map(l => l.trim()).filter(Boolean));
+      if (postType === 'template') lines.push('\n➡️ View in Feed to save this template to your library');
+
+      const msgText = lines.join('\n');
+
+      let sent = 0;
+      for (const cb of checked) {
+        const roomId = parseInt(cb.value);
+        const res = await apiFetch(`/api/chat/rooms/${roomId}/messages`, {
+          method: 'POST', body: { message: msgText }
+        }, false);
+        if (!res._error) sent++;
+      }
+
+      closeShareChatModal();
+      if (sent > 0) showToast(`Post shared to ${sent} chat room${sent > 1 ? 's' : ''}! ✅`, 'success');
+    }
+
+    function closeShareChatModal() {
+      document.getElementById('share-chat-modal').style.display = 'none';
+      _sharePostData = null;
+    }
+
+    async function saveTemplateFromPost(meta) {
+      if (!meta || !meta.exercises) {
+        showToast('Invalid template data', 'error');
+        return;
+      }
+      
+      const payload = {
+        name: (meta.template_name || 'Imported Template') + ' (Shared)',
+        training_type: meta.training_type || 'gym',
+        exercises: meta.exercises
+      };
+
+      const res = await apiFetch('/api/templates', {
+        method: 'POST',
+        body: payload
+      });
+
+      if (!res._error) {
+        showToast('Template saved to your library!', 'success');
+        alert('Template Saved Successfully! Check your Templates page.');
+      }
+    }
+
+    function escapeHtml(s) { return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>'); }
   </script>
 </body>
 </html>

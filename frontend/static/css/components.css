@@ -444,9 +444,9 @@ textarea.form-control { resize: vertical; min-height: 80px; }
 .toggle input:checked ~ .toggle-thumb { transform: translateX(18px); }
 
 /* ============================================================
-   Modal Overlay (full-screen)
+   Modal Overlay (full-screen) — used by workout/log pages
    ============================================================ */
-.modal {
+.modal-fullscreen {
   position: fixed;
   inset: 0;
   background: var(--bg-overlay);

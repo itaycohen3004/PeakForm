@@ -174,23 +174,26 @@
       
       // 2. Build summary text
       const caption = document.getElementById('share-caption').value.trim();
+      const totalVol = (wData.exercises || []).reduce((acc, ex) =>
+        acc + (ex.sets||[]).reduce((sAcc, s) => sAcc + ((s.weight_kg||0)*(s.reps||1)), 0), 0
+      );
       const lines = [
         `🏋️ Workout Completed: ${_currentShareWorkout.name}`,
-        `Duration: ${formatDuration(wData.duration_minutes || 0)}`,
-        `Volume: ${(wData.exercises || []).reduce((acc, ex) => acc + (ex.sets||[]).reduce((sAcc, s) => sAcc + ((s.weight_kg||0)*(s.reps||1)), 0), 0).toLocaleString()} kg`,
-        ''
+        `Duration: ${formatDuration(wData.duration_minutes || 0)} · Volume: ${Math.round(totalVol).toLocaleString()} kg`,
+        '',
+        'Exercises:'
       ];
       
       if (wData.exercises && wData.exercises.length) {
-        lines.push('Detailed Breakdown:');
         wData.exercises.forEach(ex => {
-          lines.push(`\n**${ex.exercise_name}**`);
-          (ex.sets || []).forEach(s => {
-            const p = [];
-            if (s.weight_kg != null) p.push(`${s.weight_kg}kg`);
-            if (s.reps != null) p.push(`${s.reps} reps`);
-            if (s.duration_seconds != null) p.push(`${s.duration_seconds}s`);
-            lines.push(`- Set ${s.set_number}: ${p.join(' × ')}`);
+          const workingSets = (ex.sets||[]).filter(s => !s.is_warmup);
+          lines.push(`\n💪 ${ex.exercise_name}`);
+          workingSets.forEach((s, i) => {
+            const parts = [];
+            if (s.weight_kg != null && s.weight_kg > 0) parts.push(`${s.weight_kg}kg`);
+            if (s.reps != null) parts.push(`${s.reps} reps`);
+            if (s.duration_seconds) parts.push(`${s.duration_seconds}s`);
+            lines.push(`  Set ${i+1}: ${parts.join(' × ') || 'Bodyweight'}`);
           });
         });
       }

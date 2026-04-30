@@ -50,6 +50,7 @@ function renderTemplates() {
           <a href="/log-workout.html?from_template=${t.id}" class="btn btn-sm btn-primary">Start</a>
           <button class="btn btn-sm btn-ghost" onclick="viewTemplate(${t.id})" style="color:var(--text-muted)">👁 View</button>
           <button class="btn btn-sm btn-ghost" onclick="editTemplate(${t.id})" style="color:var(--text-muted)">✏️ Edit</button>
+          <button class="btn btn-sm btn-ghost" onclick="shareTemplate(${t.id})" style="color:var(--accent-teal)">📢 Share</button>
           <button class="btn btn-sm btn-ghost" onclick="deleteTemplate(${t.id})" style="color:var(--text-muted)">🗑</button>
         </div>
       </div>
@@ -227,5 +228,49 @@ async function deleteTemplate(id) {
   if (!res._error) {
     showToast('Template deleted', 'success');
     loadTemplates();
+  }
+}
+
+async function shareTemplate(id) {
+  console.log(`[DEBUG] Sharing template ID: ${id}...`);
+  // Fetch full template with exercises
+  const tpl = await apiFetch(`/api/templates/${id}`);
+  if (tpl._error) {
+    showToast('Could not load template', 'error');
+    console.error('[DEBUG] Failed to load template', tpl);
+    return;
+  }
+
+  const exList = (tpl.exercises || []).map(e =>
+    `  • ${e.exercise_name} — ${e.default_sets || 3} sets`
+  ).join('\n');
+
+  const content = `📋 Sharing my workout template: ${tpl.name}\n\n${exList}\n\n[Save this template to your library!]`;
+
+  const metaData = {
+    template_id: id,
+    template_name: tpl.name,
+    training_type: tpl.training_type,
+    exercises: (tpl.exercises || []).map(e => ({
+      name: e.exercise_name,
+      default_sets: e.default_sets || 3,
+    }))
+  };
+
+  console.log('[DEBUG] Sending template to /api/community/posts', { content, post_type: 'template', meta_data: metaData });
+  const res = await apiFetch('/api/community/posts', {
+    method: 'POST',
+    body: { content, post_type: 'template', meta_data: metaData }
+  });
+
+  if (!res._error) {
+    showToast('Template shared to Community Feed!', 'success');
+    alert('Success! Template was shared to the Community Feed.');
+    console.log('[DEBUG] Successfully shared template. Response:', res);
+    window.location.href = '/community.html';
+  } else {
+    showToast('Failed to share template', 'error');
+    alert('Error: Failed to share template.');
+    console.error('[DEBUG] Failed to share template:', res);
   }
 }

@@ -161,7 +161,7 @@
         <div class="chat-avatar" style="${isMe?'background:var(--gradient-violet);color:white':''}">${avatar}</div>
         <div>
           ${!isMe ? `<div style="font-size:.72rem;color:var(--text-muted);margin-bottom:2px">${m.display_name}</div>` : ''}
-          <div class="chat-bubble">${escapeHtml(m.message)}</div>
+          <div class="chat-bubble" style="white-space:pre-wrap;word-break:break-word">${safeHtml(m.message)}</div>
           <div style="font-size:.65rem;color:var(--text-xmuted);margin-top:2px;text-align:${isMe?'right':'left'}">${formatTimeAgo(m.sent_at)}</div>
         </div>
       `;
@@ -193,6 +193,8 @@
     }
 
     function escapeHtml(s) { return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+    // safeHtml: like escapeHtml but also converts \n to <br> for multiline messages
+    function safeHtml(s) { return escapeHtml(s||'').replace(/\n/g,'<br>'); }
   </script>
 </body>
 </html>

@@ -460,46 +460,40 @@ function updateSetField(exIdx, setIdx, field, value) {
   updateSummary();
   performAutoSave();
 
-  // Real-time AI Recommendation trigger
-  if (field === 'weight_kg' || field === 'reps') {
-    debounceAIRecommendation(exIdx);
-  }
-}
-
-let aiDebounceTimers = {};
-function debounceAIRecommendation(exIdx) {
-  clearTimeout(aiDebounceTimers[exIdx]);
-  aiDebounceTimers[exIdx] = setTimeout(() => {
-    fetchNextSetRecommendation(exIdx);
-  }, 2000); // Wait 2 seconds after typing stops
-}
-
-async function fetchNextSetRecommendation(exIdx) {
+  // Trigger AI set-by-set recommendation when a working set is fully logged
   const ex = exercises[exIdx];
-  if (!ex || !ex.exercise_id) return;
-
-  const aiEl = document.getElementById(`ai-rec-${exIdx}`);
-  if (aiEl) {
-    aiEl.innerHTML = `<span class="spinner" style="width:12px;height:12px;border-width:2px;border-top-color:var(--violet-l)"></span> AI analyzing current sets...`;
-    aiEl.style.display = 'flex';
+  if (!set.is_warmup && field !== 'is_warmup' && set.weight_kg && set.reps && ex.exercise_id) {
+    _fetchAiNextSetSuggestion(exIdx, setIdx);
   }
+}
 
-  try {
-    const res = await apiFetch(`/api/ai/analyze/${ex.exercise_id}`, {
-      method: 'POST',
-      body: { current_sets: ex.sets.filter(s => s.weight_kg != null && s.reps != null) }
-    }, false);
-
-    if (res && !res._error && res.next_reps) {
-      const w = res.next_weight ? `${res.next_weight}kg × ` : '';
-      if (aiEl) {
-        aiEl.innerHTML = `🤖 <strong>AI Suggests:</strong> ${w}${res.next_reps} reps for next set`;
-        aiEl.title = res.progression_note || '';
-      }
+// Debounce per-exercise to avoid rapid firing
+const _aiDebounce = {};
+function _fetchAiNextSetSuggestion(exIdx, setIdx) {
+  clearTimeout(_aiDebounce[exIdx]);
+  _aiDebounce[exIdx] = setTimeout(async () => {
+    const ex = exercises[exIdx];
+    const workingSets = ex.sets.filter(s => !s.is_warmup && s.weight_kg && s.reps);
+    const nextSetNum = workingSets.length + 1;
+    // Show loading hint on the intel banner
+    const bannerEl = document.getElementById(`intel-${exIdx}`);
+    const aiEl = document.getElementById(`ai-rec-${exIdx}`);
+    if (aiEl) {
+      aiEl.innerHTML = `<span class="spinner" style="width:10px;height:10px;border-width:2px"></span> Analyzing Set ${workingSets.length}…`;
     }
-  } catch (e) {
-    console.error('AI analysis error:', e);
-  }
+    try {
+      const res = await apiFetch(`/api/ai/analyze/${ex.exercise_id}`, { method: 'POST' }, false);
+      if (aiEl && res && !res._error && res.next_reps) {
+        const w = res.next_weight ? `${res.next_weight}kg × ` : '';
+        aiEl.innerHTML = `🤖 <strong>Set ${nextSetNum} Target:</strong> ${w}${res.next_reps} reps`;
+        if (res.progression_note) aiEl.title = res.progression_note;
+      } else if (aiEl) {
+        aiEl.style.display = 'none';
+      }
+    } catch(_) {
+      if (aiEl) aiEl.style.display = 'none';
+    }
+  }, 800);
 }
 
 // ── Render ────────────────────────────────────────────────────

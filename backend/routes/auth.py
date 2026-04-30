@@ -8,12 +8,13 @@ from backend.models.user import (
     find_user_by_email, create_user, find_user_by_id,
     increment_failed_attempts, lock_user, reset_failed_attempts,
 )
-from backend.models.athlete import create_athlete_profile, get_athlete_profile, update_athlete_profile
+from backend.models.athlete import create_athlete_profile, get_athlete_profile, update_athlete_profile, Athlete
 from backend.models.audit import log_action
 from backend.services.auth_service import (
     hash_password, check_password, validate_password_strength,
     generate_jwt, generate_2fa_code, store_2fa_code, verify_2fa_code,
 )
+from backend.services.encryption_service import decrypt_data
 from backend.middleware.auth import require_auth
 
 auth_bp = Blueprint("auth", __name__, url_prefix="/api/auth")
@@ -95,16 +96,19 @@ def login():
     token = generate_jwt(user["id"], user["role"], email=user["email"])
     log_action(user["id"], "login_success", f"role={user['role']}", ip)
 
-    profile = get_athlete_profile(user["id"])
+    profile_row = get_athlete_profile(user["id"])
+    # Always use Athlete class to get properly decrypted display_name
+    athlete = Athlete(dict(profile_row)) if profile_row else None
+    plain_email = decrypt_data(user["email"])
 
     res = make_response(jsonify({
         "token":             token,
         "user_id":           user["id"],
         "role":              user["role"],
-        "email":             user["email"],
-        "display_name":      profile["display_name"] if profile else user["email"],
-        "training_type":     profile["training_type"] if profile else "gym",
-        "onboarding_complete": bool(profile["onboarding_complete"]) if profile else False,
+        "email":             plain_email,
+        "display_name":      athlete.display_name if athlete else plain_email.split("@")[0],
+        "training_type":     athlete.training_type if athlete else "gym",
+        "onboarding_complete": athlete.onboarding_done if athlete else False,
     }), 200)
     res.set_cookie('auth_token', token, httponly=True, secure=True, samesite='Lax')
     return res
@@ -125,15 +129,17 @@ def me():
     user = find_user_by_id(g.user_id)
     if not user:
         return jsonify({"error": "User not found"}), 404
-    profile = get_athlete_profile(g.user_id)
+    profile_row = get_athlete_profile(g.user_id)
+    athlete = Athlete(dict(profile_row)) if profile_row else None
+    plain_email = decrypt_data(user["email"])
     return jsonify({
         "user_id":           g.user_id,
-        "email":             user["email"],
+        "email":             plain_email,
         "role":              g.role,
-        "display_name":      profile["display_name"] if profile else user["email"],
-        "training_type":     profile["training_type"] if profile else "gym",
-        "onboarding_complete": bool(profile["onboarding_complete"]) if profile else False,
-        "avatar_url":        profile["avatar_url"] if profile else None,
+        "display_name":      athlete.display_name if athlete else plain_email.split("@")[0],
+        "training_type":     athlete.training_type if athlete else "gym",
+        "onboarding_complete": athlete.onboarding_done if athlete else False,
+        "avatar_url":        athlete.avatar_url if athlete else None,
     }), 200
 
 

@@ -37,13 +37,18 @@ def create():
     if not content:
         return jsonify({"error": "content required"}), 400
 
-    valid_types = ["update","achievement","progress_photo","question","tip"]
+    valid_types = ["update","achievement","progress_photo","question","tip","template"]
     post_type = data.get("post_type", "update")
     if post_type not in valid_types:
         post_type = "update"
 
-    media_path = data.get("media_path")  # optional pre-uploaded path
-    post_id = create_post(g.user_id, content, post_type, media_path)
+    meta_data = data.get("meta_data")  # JSON string for rich cards (templates etc.)
+    import json
+    if meta_data and not isinstance(meta_data, str):
+        meta_data = json.dumps(meta_data)
+
+    media_path = data.get("media_path")
+    post_id = create_post(g.user_id, content, post_type, media_path, meta_data)
     return jsonify({"id": post_id, "message": "Post created."}), 201
 
 

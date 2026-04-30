@@ -166,9 +166,21 @@ function getDashboardUrl() { return '/dashboard.html'; }
 async function renderSidebar() {
   const sidebar = document.getElementById('sidebar');
   if (!sidebar) return;
-  const user = getUser();
+
+  // Always refresh with decrypted values from server (non-blocking fallback)
+  let user = getUser();
   if (!user) return;
-  const initials = (user.display_name || user.email || 'P').substring(0, 2).toUpperCase();
+  try {
+    const me = await apiFetch('/api/auth/me', {}, false);
+    if (me && !me._error && me.display_name) {
+      const updated = { ...user, email: me.email, display_name: me.display_name, role: me.role, training_type: me.training_type };
+      saveAuth(getToken(), updated);
+      user = updated;
+    }
+  } catch(_) { /* non-fatal */ }
+
+  const displayName = user.display_name || (user.email && !user.email.startsWith('gAAAA') ? user.email.split('@')[0] : 'Athlete');
+  const initials = displayName.substring(0, 2).toUpperCase();
 
   sidebar.innerHTML = `
     <a href="/dashboard.html" class="sidebar-logo">
@@ -224,7 +236,7 @@ async function renderSidebar() {
       <div class="sidebar-user">
         <div class="sidebar-user-avatar">${initials}</div>
         <div class="sidebar-user-info">
-          <div class="sidebar-user-name">${escHtml(user.display_name || user.email)}</div>
+          <div class="sidebar-user-name">${escHtml(displayName)}</div>
           <div class="sidebar-user-role">${user.training_type || 'Athlete'}</div>
         </div>
       </div>

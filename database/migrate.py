@@ -34,6 +34,7 @@ def migrate(db_path=DB_PATH):
 
     # users
     add_column_if_missing("users", "email_index", "TEXT UNIQUE")
+    add_column_if_missing("users", "role", "TEXT NOT NULL DEFAULT 'user'")
 
     # exercises — add status for approval workflow and muscles_tags for multi-category
     add_column_if_missing("exercises", "training_styles",  "TEXT DEFAULT 'gym,hybrid'")
@@ -95,7 +96,18 @@ def migrate(db_path=DB_PATH):
         )
     """)
 
+    # community_posts — add meta_data for rich template/workout posts
+    add_column_if_missing("community_posts", "meta_data", "TEXT")
+
+    # chat_rooms — add room_type for public/dm distinction
+    add_column_if_missing("chat_rooms", "room_type", "TEXT NOT NULL DEFAULT 'public'")
+    add_column_if_missing("chat_rooms", "owner_user_id", "INTEGER")  # For DM: user who owns the room
+
+    # Ensure default chat rooms have room_type set
+    cursor.execute("UPDATE chat_rooms SET room_type='public' WHERE room_type IS NULL OR room_type=''")
+
     # Create ai_sessions if not exists
+
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS ai_sessions (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -204,7 +216,7 @@ def migrate(db_path=DB_PATH):
     if migrations:
         print("[Migration] Applied:")
         for m in migrations:
-            print(f"  ✓ {m}")
+            print(f"  [OK] {m}")
     else:
         print("[Migration] Database is up to date.")
 

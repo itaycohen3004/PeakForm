@@ -6,11 +6,11 @@ from backend.services.encryption_service import encrypt_data, decrypt_data
 # Posts
 # ============================================================
 
-def create_post(user_id: int, content: str, post_type: str = "update", media_path: str = None) -> int:
+def create_post(user_id: int, content: str, post_type: str = "update", media_path: str = None, meta_data: str = None) -> int:
     db = get_db()
     cur = db.execute(
-        "INSERT INTO community_posts (user_id, content, post_type, media_path) VALUES (?,?,?,?)",
-        (user_id, encrypt_data(content), post_type, media_path),
+        "INSERT INTO community_posts (user_id, content, post_type, media_path, meta_data) VALUES (?,?,?,?,?)",
+        (user_id, encrypt_data(content), post_type, media_path, meta_data),
     )
     db.commit()
     return cur.lastrowid
@@ -41,6 +41,7 @@ def get_feed(limit: int = 30, offset: int = 0, user_id_filter: int = None):
         d["content"] = decrypt_data(d["content"])
         d["display_name"] = decrypt_data(d["display_name"])
         d["email"] = decrypt_data(d["email"])
+        # meta_data is plain JSON, not encrypted — safe to return as-is
         results.append(d)
     return results
 

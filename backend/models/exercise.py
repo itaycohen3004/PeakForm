@@ -4,19 +4,32 @@ Exercise library model — search, CRUD, and set-type resolution.
 from .db import get_db
 
 
+def _send_admin_dm(user_id: int, message: str):
+    """Non-blocking helper — sends a DM without crashing the caller."""
+    try:
+        from backend.models.chat import send_admin_dm_message
+        send_admin_dm_message(user_id, message)
+    except Exception:
+        pass
+
+
 def search_exercises(query: str = "", category: str = "", limit: int = 50, user_id: int = None):
     db = get_db()
-    # Show only approved exercises
-    sql = "SELECT * FROM exercises WHERE (status = 'approved' OR status IS NULL)"
+    # Globally-visible: approved (or legacy exercises with NULL status)
+    # Personal-only: user's own pending submissions
+    sql = "SELECT * FROM exercises WHERE (status = 'approved' OR (status IS NULL AND is_custom = 0)"
     params = []
-    # Removed pending exercise visibility for creators as requested
-    sql += ""
+    if user_id:
+        sql += " OR (status = 'pending' AND created_by = ?)"
+        params.append(user_id)
+    sql += ")"
     if query:
         sql += " AND name LIKE ?"
         params.append(f"%{query}%")
     if category:
-        sql += " AND category = ?"
+        sql += " AND (category = ? OR muscles_tags LIKE ?)"
         params.append(category)
+        params.append(f"%{category}%")
     sql += " ORDER BY name LIMIT ?"
     params.append(limit)
     return db.execute(sql, params).fetchall()
@@ -36,19 +49,57 @@ def get_pending_exercises():
 
 def approve_exercise(exercise_id: int):
     db = get_db()
-    # Get creator before approving
-    ex = db.execute("SELECT created_by, name FROM exercises WHERE id = ?", (exercise_id,)).fetchone()
-    if ex:
-        db.execute("UPDATE exercises SET status = 'approved' WHERE id = ?", (exercise_id,))
-        db.commit()
-        return dict(ex)
-    return None
+    # Get exercise details before approving for notification
+    ex = db.execute("SELECT name, created_by FROM exercises WHERE id = ?", (exercise_id,)).fetchone()
+    db.execute("UPDATE exercises SET status = 'approved' WHERE id = ?", (exercise_id,))
+    db.commit()
+    # Send in-app notification to the creator
+    if ex and ex["created_by"]:
+        try:
+            db.execute(
+                """INSERT INTO notifications (user_id, type, title, message, is_read, created_at)
+                   VALUES (?, 'exercise_approved', ?, ?, 0, datetime('now'))""",
+                (
+                    ex["created_by"],
+                    "Exercise Approved! ✅",
+                    f"Your exercise \u201c{ex['name']}\u201d has been approved and is now in the library!",
+                )
+            )
+            db.commit()
+        except Exception:
+            pass  # Notifications table may not exist yet — migration handles it
+        # Also send automatic private DM
+        _send_admin_dm(
+            ex["created_by"],
+            f"\u2705 Your exercise **{ex['name']}** has been **approved** and is now live in the exercise library! Start adding it to your workouts."
+        )
 
 
 def reject_exercise(exercise_id: int):
     db = get_db()
+    ex = db.execute("SELECT name, created_by FROM exercises WHERE id = ?", (exercise_id,)).fetchone()
     db.execute("UPDATE exercises SET status = 'rejected' WHERE id = ?", (exercise_id,))
     db.commit()
+    # Notify the creator of rejection
+    if ex and ex["created_by"]:
+        try:
+            db.execute(
+                """INSERT INTO notifications (user_id, type, title, message, is_read, created_at)
+                   VALUES (?, 'exercise_rejected', ?, ?, 0, datetime('now'))""",
+                (
+                    ex["created_by"],
+                    "Exercise Not Approved",
+                    f"Your exercise \u201c{ex['name']}\u201d was not approved. You can resubmit with more details.",
+                )
+            )
+            db.commit()
+        except Exception:
+            pass
+        # Also send automatic private DM
+        _send_admin_dm(
+            ex["created_by"],
+            f"\u274c Your exercise **{ex['name']}** was **not approved** at this time. Please ensure it has a unique name, correct muscle tags, and accurate equipment details, then resubmit."
+        )
 
 
 def get_exercise_by_id(exercise_id: int):

@@ -48,6 +48,28 @@
       </h2>
       <div id="pending-list"><div class="skeleton skeleton-block"></div></div>
     </div>
+
+    <!-- Create Chat Room -->
+    <div class="admin-card">
+      <h2 class="mb-md" style="font-size:1.1rem;display:flex;align-items:center;gap:8px">💬 Create Chat Room</h2>
+      <div class="form-row mb-md">
+        <div class="form-group">
+          <label class="form-label">Room Name *</label>
+          <input type="text" id="new-room-name" class="form-control" placeholder="e.g. Powerlifting Hub" maxlength="60">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Description</label>
+          <input type="text" id="new-room-desc" class="form-control" placeholder="What is this room for?">
+        </div>
+      </div>
+      <button class="btn btn-primary" onclick="createChatRoom()">➕ Create Room</button>
+    </div>
+
+    <!-- Users quick-stats -->
+    <div class="admin-card">
+      <h2 class="mb-md" style="font-size:1.1rem">📊 Platform Stats</h2>
+      <div id="admin-stats"><div class="skeleton skeleton-block"></div></div>
+    </div>
   </main>
 
   <div id="toast-container" class="toast-container"></div>

@@ -111,6 +111,8 @@
       const message = input.value.trim();
       if (!message) return;
 
+      console.log(`[DEBUG] Sending message to AI coach: "${message.substring(0, 50)}..."`);
+
       const btn = document.getElementById('send-btn');
       btn.disabled = true;
       input.value = '';
@@ -123,6 +125,7 @@
       // Typing indicator
       const typingId = appendTyping();
 
+      console.log('[DEBUG] Calling API endpoint: /api/ai/chat');
       const res = await apiFetch('/api/ai/chat', {
         method: 'POST',
         body: { message, history: chatHistory.slice(-12) },
@@ -132,9 +135,15 @@
       btn.disabled = false;
 
       if (res._error) {
-        appendMessage('ai', 'Sorry, I couldn\'t process that. Make sure your Gemini API key is configured in `.env`.', 'Error');
+        console.error('[DEBUG] API request to /api/ai/chat failed:', res);
+        alert('Error: Failed to connect to AI Coach. Check the terminal for backend errors.');
+        
+        const errorDetails = res.message || res.error || JSON.stringify(res);
+        appendMessage('ai', `Sorry, I couldn't process that.\n\n**Error from server:** ${errorDetails}\n\nMake sure your Gemini API key is configured correctly and you haven't hit the quota.`, 'Error');
         return;
       }
+
+      console.log('[DEBUG] Received response from AI coach:', res.reply ? res.reply.substring(0, 50) + '...' : res);
 
       chatHistory.push({ role: 'assistant', message: res.reply });
       appendMessage('ai', res.reply, 'Just now');

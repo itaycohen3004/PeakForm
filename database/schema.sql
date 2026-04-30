@@ -58,16 +58,6 @@ CREATE TABLE IF NOT EXISTS athlete_profiles (
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
-CREATE TABLE IF NOT EXISTS notifications (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id INTEGER NOT NULL,
-    title TEXT NOT NULL,
-    message TEXT,
-    is_read INTEGER DEFAULT 0,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-);
-
 -- ============================================================
 -- EXERCISE LIBRARY
 -- ============================================================
@@ -293,12 +283,13 @@ CREATE TABLE IF NOT EXISTS community_posts (
     user_id INTEGER NOT NULL,
     content TEXT NOT NULL,
     post_type TEXT DEFAULT 'update' CHECK(post_type IN (
-        'update','achievement','progress_photo','question','tip'
+        'update','achievement','progress_photo','question','tip','template'
     )),
     media_path TEXT,
     likes_count INTEGER NOT NULL DEFAULT 0,
     is_deleted INTEGER NOT NULL DEFAULT 0,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    meta_data TEXT,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 

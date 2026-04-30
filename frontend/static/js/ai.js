@@ -6,7 +6,7 @@
 let selectedCards = null;
 
 onReady(async () => {
-  requireAuth(); // Generic auth is fine for athletes
+  requireAuth();
   renderSidebar();
   initMobileSidebar();
 
@@ -15,6 +15,23 @@ onReady(async () => {
   if (firstCard) selectType(firstCard);
 
   await loadHistory();
+
+  // Check if redirected from Feed "Send to Coach"
+  try {
+    const prefill = sessionStorage.getItem('coach_prefill');
+    if (prefill) {
+      sessionStorage.removeItem('coach_prefill');
+      // Find the chat input — handle both possible IDs
+      const chatInput = document.getElementById('chat-message') || document.getElementById('user-input');
+      if (chatInput) {
+        chatInput.value = `Can you analyze this post from the community feed and give me some coaching insights?\n\n"${prefill}"`;
+        chatInput.focus();
+        // Auto-scroll to bottom of page so user sees the chat box
+        chatInput.scrollIntoView({ behavior: 'smooth' });
+        showToast('Post loaded into chat — hit Send to discuss with your coach!', 'info');
+      }
+    }
+  } catch(e) {}
 });
 
 function selectType(card) {

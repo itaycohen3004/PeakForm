@@ -42,13 +42,17 @@ def ai_status():
 def chat():
     data    = request.get_json(silent=True) or {}
     message = (data.get("message") or "").strip()
+    print(f"[AI Route] /api/ai/chat called: user={g.user_id} msg_len={len(message)}")
+
     if not message:
         return jsonify({"error": "message required"}), 400
 
     history = get_ai_history(g.user_id, limit=12)
     context = _build_context(g.user_id)
+    print(f"[AI Route] Context built ({len(context)} chars), history={len(history)} msgs")
 
     reply = run_coaching_chat(message, context, history)
+    print(f"[AI Route] Reply generated ({len(reply)} chars)")
 
     save_ai_message(g.user_id, "user", message, context)
     save_ai_message(g.user_id, "assistant", reply)
@@ -80,12 +84,8 @@ def analyze_exercise(exercise_id):
     ex = get_exercise_by_id(exercise_id)
     if not ex:
         return jsonify({"error": "Exercise not found"}), 404
-    
-    data = request.get_json(silent=True) or {}
-    current_sets = data.get("current_sets", [])
-    
     context = _build_context(g.user_id)
-    result  = analyze_workout_progression(context, ex["name"], current_sets=current_sets)
+    result  = analyze_workout_progression(context, ex["name"])
     return jsonify({**result, "exercise_name": ex["name"]}), 200
 
 

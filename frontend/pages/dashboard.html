@@ -150,8 +150,14 @@
       await renderSidebar();
       initMobileSidebar();
 
-      const user = getUser();
-      document.getElementById('welcome-msg').textContent = `Hello, ${escHtml(user?.display_name || 'Athlete')} 👋`;
+      // Always fetch fresh user info to get decrypted display_name
+      try {
+        const me = await apiFetch('/api/auth/me', {}, false);
+        const name = (me && !me._error && me.display_name) ? me.display_name : 'Athlete';
+        document.getElementById('welcome-msg').textContent = `Hello, ${escHtml(name)} 👋`;
+      } catch(_) {
+        document.getElementById('welcome-msg').textContent = 'Hello, Athlete 👋';
+      }
 
       // Check for draft
       const draft = loadDraft('active_workout');
