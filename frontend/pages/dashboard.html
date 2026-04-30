@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>Dashboard — PeakForm</title>
   <meta name="description" content="PeakForm training dashboard with stats, goals, recent workouts, and AI recommendations.">
   <link rel="icon" href="/static/assets/logo.png">
@@ -229,6 +229,7 @@
             },
             options: {
               responsive: true,
+              maintainAspectRatio: false,
               plugins: { legend: { display: false } },
               scales: {
                 x: { grid: { color: 'rgba(255,255,255,.04)' }, ticks: { color: '#6B6B80', font: { size: 11 } } },

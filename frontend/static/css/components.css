@@ -200,7 +200,7 @@ textarea.form-control { resize: vertical; min-height: 80px; }
 /* ============================================================
    Tables
    ============================================================ */
-.table-wrapper { overflow-x: auto; }
+.table-wrapper { overflow-x: auto; -webkit-overflow-scrolling: touch; }
 
 .table {
   width: 100%;
@@ -318,6 +318,14 @@ textarea.form-control { resize: vertical; min-height: 80px; }
   max-height: 90vh;
   overflow-y: auto;
   animation: modal-in .2s var(--ease);
+}
+@media (max-width: 768px) {
+  .modal {
+    margin: auto;
+    max-height: 85vh;
+    padding: 16px;
+    padding-bottom: 40px;
+  }
 }
 .modal-lg { max-width: 720px; }
 @keyframes modal-in { from{opacity:0;transform:translateY(-8px)scale(.98)} to{opacity:1;transform:none} }
@@ -467,6 +475,14 @@ textarea.form-control { resize: vertical; min-height: 80px; }
   overflow-y: auto;
   animation: modal-in .18s var(--ease);
 }
+@media (max-width: 768px) {
+  .modal-box {
+    margin: auto;
+    max-height: 85vh;
+    padding: 16px;
+    padding-bottom: 40px;
+  }
+}
 @keyframes modal-in {
   from { opacity:0; transform:translateY(-8px) scale(.97); }
   to   { opacity:1; transform:none; }
@@ -527,7 +543,27 @@ textarea.form-control { resize: vertical; min-height: 80px; }
   z-index: 90;
 }
 @media (max-width: 768px) {
-  .workout-summary-bar { left: 0; padding: var(--space-sm) var(--space-md); gap: var(--space-md); }
+  .workout-summary-bar { 
+    position: sticky;
+    top: 0; bottom: auto; 
+    left: 0; right: 0;
+    padding: 8px 10px; 
+    gap: 8px; 
+    border-top: none; 
+    border-bottom: 1px solid rgba(139,92,246,0.3); 
+    background: rgba(17, 17, 24, 0.98);
+    backdrop-filter: blur(12px);
+    justify-content: space-between;
+    z-index: 200;
+    margin: -10px -10px 16px -10px; /* Counteract the main-content padding */
+  }
+  .workout-summary-stat .value { font-size: 1rem; margin-bottom: -2px; }
+  .workout-summary-stat .label { font-size: 0.8rem; }
+  #summary-finish-btn { padding: 4px 12px; font-size: 0.85rem; min-height: 32px !important; margin-left: auto; }
+  
+  /* Hide duplicate buttons and timer in the regular header on mobile */
+  .workout-header > div:nth-child(2) { display: none !important; }
+  #workout-timer { display: none !important; }
 }
 .workout-summary-stat { text-align: center; }
 .workout-summary-stat .value { font-size: 1.1rem; font-weight: 900; line-height: 1.1; }
@@ -677,4 +713,28 @@ textarea.form-control { resize: vertical; min-height: 80px; }
 .cat-btn[data-active] {
   background: rgba(139,92,246,.15);
   color: var(--violet-l);
+}
+
+/* ============================================================
+   Mobile Overrides
+   ============================================================ */
+@media (max-width: 768px) {
+  /* Larger touch targets */
+  .btn {
+    min-height: 48px;
+  }
+  
+  /* Prevent iOS auto-zoom */
+  .form-control, .set-input {
+    font-size: 16px !important;
+  }
+  
+  /* Disable hover effects to prevent double-tap issues */
+  *:hover, .btn:hover, .btn-primary:hover, .btn-amber:hover, .btn-outline:hover, .btn-ghost:hover, .btn-danger:hover, .start-option-card:hover, .template-select-row:hover, .exercise-block:hover {
+    transform: none !important;
+    box-shadow: none !important;
+  }
+  
+  .btn-primary:hover { box-shadow: 0 2px 12px rgba(139,92,246,.3) !important; }
+  .btn-amber:hover { box-shadow: 0 2px 12px rgba(245,158,11,.3) !important; }
 }

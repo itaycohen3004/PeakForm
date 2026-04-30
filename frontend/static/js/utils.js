@@ -250,6 +250,65 @@ async function renderSidebar() {
   sidebar.querySelectorAll('.nav-item').forEach(a => {
     if (a.dataset.page === page) a.classList.add('active');
   });
+
+  // Inject bottom navigation for mobile
+  if (!document.getElementById('bottom-nav')) {
+    const bnav = document.createElement('nav');
+    bnav.id = 'bottom-nav';
+    bnav.className = 'bottom-nav';
+    bnav.innerHTML = `
+      <a href="/dashboard.html" class="bottom-nav-item" data-page="dashboard">
+        <span class="nav-icon">📊</span><span>Home</span>
+      </a>
+      <a href="/log-workout.html" class="bottom-nav-item" data-page="log-workout">
+        <span class="nav-icon">💪</span><span>Workout</span>
+      </a>
+      <a href="/ai-coach.html" class="bottom-nav-item" data-page="ai-coach">
+        <span class="nav-icon">🤖</span><span>Coach</span>
+      </a>
+      <a href="/profile.html" class="bottom-nav-item" data-page="profile">
+        <span class="nav-icon">👤</span><span>Profile</span>
+      </a>
+      <div class="bottom-nav-item" id="mobile-hamburger" style="cursor:pointer">
+        <span class="nav-icon">☰</span><span>More</span>
+      </div>
+    `;
+    document.body.appendChild(bnav);
+
+    bnav.querySelectorAll('.bottom-nav-item').forEach(a => {
+      if (a.dataset.page === page) a.classList.add('active');
+    });
+
+    // Mobile menu modal for More Options
+    const menuModal = document.createElement('div');
+    menuModal.id = 'mobile-menu-modal';
+    menuModal.className = 'modal-backdrop';
+    menuModal.style.display = 'none';
+    menuModal.innerHTML = `
+      <div class="modal" style="margin-top:auto; margin-bottom:0; border-bottom-left-radius:0; border-bottom-right-radius:0;">
+        <div class="modal-header">
+          <h3 class="modal-title">More</h3>
+          <button class="modal-close" onclick="closeModal('mobile-menu-modal')">✕</button>
+        </div>
+        <div class="more-menu-grid mb-md">
+          <a href="/community.html" class="more-menu-item"><span class="nav-icon">🌐</span> Feed</a>
+          <a href="/exercise-library.html" class="more-menu-item"><span class="nav-icon">🔍</span> Library</a>
+          <a href="/workout-history.html" class="more-menu-item"><span class="nav-icon">📅</span> History</a>
+          <a href="/achievements.html" class="more-menu-item"><span class="nav-icon">🏆</span> Goals</a>
+          <a href="/body-weight.html" class="more-menu-item"><span class="nav-icon">⚖️</span> Weight</a>
+          <a href="/templates.html" class="more-menu-item"><span class="nav-icon">📋</span> Templates</a>
+          ${user.role === 'admin' ? '<a href="/admin.html" class="more-menu-item" style="color:var(--amber)"><span class="nav-icon">🛡️</span> Admin</a>' : ''}
+          <a href="#" class="more-menu-item" onclick="logout()" style="color:var(--red)"><span class="nav-icon">🚪</span> Sign Out</a>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(menuModal);
+    closeModalOnBackdrop('mobile-menu-modal');
+
+    document.getElementById('mobile-hamburger').addEventListener('click', () => {
+      openModal('mobile-menu-modal');
+    });
+  }
 }
 
 // ── Logout ───────────────────────────────────────────────────

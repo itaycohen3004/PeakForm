@@ -23,11 +23,9 @@ print(f"[AICoach] Preferred model: {GEMINI_MODEL}")
 # Models to try in order — gemini-1.5-flash is the most reliable free-tier model
 _FALLBACK_MODELS = [
     "gemini-2.5-flash-lite",
-    "gemini-2.5-flash",
     "gemini-2.0-flash-lite",
-    "gemini-2.0-flash",
+    "gemini-2.5-flash",
 ]
-
 
 import google.generativeai as genai
 import traceback

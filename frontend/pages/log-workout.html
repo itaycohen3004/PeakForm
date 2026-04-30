@@ -1,13 +1,19 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>Log Workout — PeakForm</title>
   <meta name="description" content="Log your strength training workout with PeakForm.">
   <link rel="icon" href="/static/assets/logo.png">
   <link rel="stylesheet" href="/static/css/main.css">
   <link rel="stylesheet" href="/static/css/components.css">
   <link rel="stylesheet" href="/static/css/workout.css">
+  <style>
+    @media (max-width: 768px) {
+      /* Create space for the sticky top summary bar on mobile */
+      body.app-layout .main-content { padding-top: 60px !important; }
+    }
+  </style>
 </head>
 <body class="app-layout">
   <button class="mobile-menu-btn" id="mobile-menu-btn">☰</button>
@@ -15,6 +21,28 @@
   <aside class="sidebar" id="sidebar"></aside>
 
   <main class="main-content" style="padding-bottom:100px">
+    
+    <!-- Sticky summary bar -->
+    <div class="workout-summary-bar" id="summary-bar" style="display:none">
+      <button class="btn btn-ghost btn-sm summary-cancel" onclick="showDiscardConfirm()" style="padding: 0 8px; color: var(--red); font-size: 1.2rem;">✕</button>
+      <div class="workout-summary-stat">
+        <div class="value" id="sum-exercises">0</div>
+        <div class="label">🏋️</div>
+      </div>
+      <div class="workout-summary-stat">
+        <div class="value" id="sum-sets">0</div>
+        <div class="label">🔢</div>
+      </div>
+      <div class="workout-summary-stat">
+        <div class="value" id="sum-volume">0</div>
+        <div class="label">⚖️</div>
+      </div>
+      <div class="workout-summary-stat">
+        <div class="value" id="sum-duration">00:00</div>
+        <div class="label">⏱️</div>
+      </div>
+      <button class="btn btn-primary" onclick="finishWorkout()" id="summary-finish-btn">Finish</button>
+    </div>
 
     <!-- Workout Start Options (shown before starting) -->
     <div id="start-options" style="display:none">
@@ -111,27 +139,6 @@
       </div>
     </div>
   </main>
-
-  <!-- Sticky summary bar -->
-  <div class="workout-summary-bar" id="summary-bar" style="display:none">
-    <div class="workout-summary-stat">
-      <div class="value" id="sum-exercises">0</div>
-      <div class="label">Exercises</div>
-    </div>
-    <div class="workout-summary-stat">
-      <div class="value" id="sum-sets">0</div>
-      <div class="label">Sets</div>
-    </div>
-    <div class="workout-summary-stat">
-      <div class="value" id="sum-volume">0</div>
-      <div class="label">Vol kg</div>
-    </div>
-    <div class="workout-summary-stat">
-      <div class="value" id="sum-duration">00:00</div>
-      <div class="label">Time</div>
-    </div>
-    <button class="btn btn-primary" onclick="finishWorkout()" id="summary-finish-btn">✓ Finish Workout</button>
-  </div>
 
   <div id="toast-container" class="toast-container"></div>
   <script src="/static/js/utils.js"></script>

@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>Goals & Achievements — PeakForm</title>
   <meta name="description" content="Track your strength training goals and celebrate achievements on PeakForm.">
   <link rel="icon" href="/static/assets/logo.png">
@@ -40,7 +40,7 @@
   </main>
 
   <!-- New Goal Modal -->
-  <div id="goal-modal" class="modal" style="display:none" onclick="if(event.target===this)closeModal('goal-modal')">
+  <div id="goal-modal" class="modal-backdrop" style="display:none" onclick="if(event.target===this)closeModal('goal-modal')">
     <div class="modal-box" style="max-width:520px">
       <div class="modal-header">
         <span class="modal-title">🎯 New Goal</span>
@@ -91,7 +91,7 @@
           <label class="form-label">Deadline (optional)</label>
           <input type="date" id="goal-deadline" class="form-control">
         </div>
-        <div style="display:flex;gap:12px">
+        <div style="display:flex;gap:12px;position:sticky;bottom:-16px;background:var(--bg-card);padding:16px 0;margin-top:auto;z-index:10;border-top:1px solid var(--bg-border)">
           <button type="button" class="btn btn-ghost btn-full" onclick="closeModal('goal-modal')">Cancel</button>
           <button type="submit" class="btn btn-primary btn-full" id="create-goal-btn">Create Goal</button>
         </div>
@@ -100,8 +100,8 @@
   </div>
 
   <!-- Achievement Share Modal -->
-  <div id="share-achievement-modal" class="modal" style="display:none" onclick="if(event.target===this)closeModal('share-achievement-modal')">
-    <div class="modal-box" style="max-width:540px;max-height:90vh;overflow-y:auto">
+  <div id="share-achievement-modal" class="modal-backdrop" style="display:none" onclick="if(event.target===this)closeModal('share-achievement-modal')">
+    <div class="modal-box" style="max-width:540px;max-height:85vh;overflow-y:auto;display:flex;flex-direction:column;">
       <div class="modal-header">
         <span class="modal-title">🎉 Share Achievement</span>
         <button class="modal-close" onclick="closeModal('share-achievement-modal')">✕</button>
@@ -138,8 +138,10 @@
         <input type="file" id="share-photo-input" accept="image/*" style="display:none" onchange="handlePhotoSelect(this)">
         <button id="remove-photo-btn" class="btn btn-ghost btn-sm" style="display:none;margin-top:6px;color:var(--text-muted)" onclick="removeSharePhoto()">✕ Remove photo</button>
       </div>
-      <button class="btn btn-primary btn-full" id="share-feed-btn" onclick="shareToFeedFromModal()" style="font-size:.95rem;padding:13px">📢 Share to Community Feed</button>
-      <div style="font-size:.72rem;color:var(--text-muted);text-align:center;margin-top:8px">Visible to all PeakForm community members.</div>
+      <div style="position:sticky;bottom:-16px;background:var(--bg-card);padding:16px 0 0;margin-top:auto;z-index:10;border-top:1px solid var(--bg-border)">
+        <button class="btn btn-primary btn-full" id="share-feed-btn" onclick="shareToFeedFromModal()" style="font-size:.95rem;padding:13px">📢 Share to Community Feed</button>
+        <div style="font-size:.72rem;color:var(--text-muted);text-align:center;margin-top:8px">Visible to all PeakForm community members.</div>
+      </div>
     </div>
   </div>
 

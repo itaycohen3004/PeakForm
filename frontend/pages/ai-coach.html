@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>AI Coach — PeakForm</title>
   <meta name="description" content="Chat with your AI strength coach powered by Google Gemini.">
   <link rel="icon" href="/static/assets/logo.png">
@@ -243,6 +243,12 @@
   </script>
   <style>
     .main-content { padding-bottom: 0 !important; }
+    
+    @media (max-width: 768px) {
+      .main-content { 
+        max-height: calc(100dvh - 80px) !important; 
+      }
+    }
 
     .quick-prompts {
       display: flex; gap: 8px; flex-wrap: wrap;
