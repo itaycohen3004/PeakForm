@@ -246,11 +246,22 @@
     
     @media (max-width: 768px) {
       .main-content { 
-        height: 100dvh !important;
-        max-height: 100dvh !important;
-        padding-bottom: calc(65px + env(safe-area-inset-bottom)) !important;
+        height: calc(100dvh - 65px) !important;
+        max-height: calc(100dvh - 65px) !important;
+        padding-bottom: 0 !important;
       }
-      .chat-input-area { padding-bottom: var(--space-md) !important; }
+      .chat-area {
+        padding-bottom: 85px !important;
+      }
+      .chat-input-area { 
+        position: fixed !important;
+        bottom: 65px !important;
+        left: 0;
+        right: 0;
+        z-index: 100;
+        background: var(--bg-base);
+        padding-bottom: max(var(--space-md), env(safe-area-inset-bottom)) !important;
+      }
     }
 
     .quick-prompts {

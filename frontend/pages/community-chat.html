@@ -9,11 +9,28 @@
   <link rel="stylesheet" href="/static/css/workout.css">
   <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
   <style>
+    #chat-pane { display: flex; flex-direction: column; height: 100%; min-height: 0; }
     @media (max-width: 768px) {
       .chat-container { display: flex !important; flex-direction: column !important; }
       #room-list-pane { width: 100%; flex: 1; }
       #chat-pane { width: 100%; display: none; }
-      .main-content { padding-bottom: calc(65px + env(safe-area-inset-bottom)) !important; }
+      #chat-placeholder { display: none !important; }
+      .main-content { 
+        height: calc(100dvh - 65px) !important;
+        padding-bottom: 0 !important; 
+      }
+      .chat-messages {
+        padding-bottom: 85px !important;
+      }
+      .chat-input-row {
+        position: fixed !important;
+        bottom: 65px !important;
+        left: 0;
+        right: 0;
+        z-index: 100;
+        background: var(--bg-base);
+        padding-bottom: max(var(--space-md), env(safe-area-inset-bottom)) !important;
+      }
     }
   </style>
 </head>
@@ -35,7 +52,7 @@
       </div>
 
       <!-- Chat area -->
-      <div id="chat-pane" style="display:flex;flex-direction:column;height:100%;min-height:0">
+      <div id="chat-pane">
         <div id="chat-placeholder" class="card" style="flex:1;display:flex;align-items:center;justify-content:center;text-align:center">
           <div><div class="empty-icon">💬</div><h3>Select a chat room</h3><p>Join a room to start chatting</p></div>
         </div>
