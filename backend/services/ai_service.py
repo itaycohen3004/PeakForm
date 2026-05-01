@@ -12,12 +12,14 @@ import json
 from dotenv import load_dotenv
 from backend.services.encryption_service import encrypt_data, decrypt_data
 
-load_dotenv()
+load_dotenv('config.env')
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+GEMINI_SECONDARY_API_KEY = os.getenv("GEMINI_SECONDARY_API_KEY", "")
 GEMINI_MODEL   = os.getenv("GEMINI_MODEL", "gemini-1.5-flash")
 
 print(f"[AICoach] API key loaded: {'YES ('+GEMINI_API_KEY[:8]+'...)' if GEMINI_API_KEY else 'NO — set GEMINI_API_KEY in .env'}")
+print(f"[AICoach] Secondary API key loaded: {'YES' if GEMINI_SECONDARY_API_KEY else 'NO'}")
 print(f"[AICoach] Preferred model: {GEMINI_MODEL}")
 
 # Models to try in order — gemini-1.5-flash is the most reliable free-tier model
@@ -25,6 +27,8 @@ _FALLBACK_MODELS = [
     "gemini-2.5-flash-lite",
     "gemini-2.0-flash-lite",
     "gemini-2.5-flash",
+    "gemini-1.5-pro",
+    "gemini-1.5-flash"
 ]
 
 import google.generativeai as genai
@@ -39,14 +43,21 @@ class AICoach:
 
     def __init__(self, api_key: str = None, model_name: str = None):
         self.api_key    = api_key or GEMINI_API_KEY
+        self.secondary_key = GEMINI_SECONDARY_API_KEY
+        
         # Fallback hardcoded key for internal testing
         if not self.api_key:
             self.api_key = "AIzaSyDs3skt6o2xx6lK2-adjUCESaNSDZtJtLQ"
             
+        self.active_key = self.api_key
         self.model_name = model_name or GEMINI_MODEL
         self._client    = None
         self._configured = False
         self._last_error = ""
+        
+        # Fallback tracking
+        self.available_models = ["gemini-2.0-flash"] + [m for m in _FALLBACK_MODELS if m != "gemini-2.0-flash"]
+        self.current_model_index = 0
 
         # As requested: check if GOOGLE_API_KEY or GEMINI_API_KEY is actually being loaded
         key_to_log = os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY")
@@ -56,54 +67,78 @@ class AICoach:
             print("Using API Key: None found in env! Using fallback.")
 
     def _initialize(self):
-        """Lazy initialization — try models until one works."""
+        """Lazy initialization — prepare the first available model."""
         if self._configured:
             return
 
-        if not self.api_key or self.api_key == "your_gemini_api_key_here":
+        if not self.active_key or self.active_key == "your_gemini_api_key_here":
             print("[AICoach] ❌ No valid API key. Set GEMINI_API_KEY in .env")
             self._last_error = "No API key configured."
             return
 
-        print(f"[AICoach] Initializing with key={self.api_key[:8]}... preferred={self.model_name}")
+        print(f"[AICoach] Initializing with key={self.active_key[:8]}... preferred={self.model_name}")
         try:
-            genai.configure(api_key=self.api_key)
-
-            # Build ordered list: force gemini-2.0-flash as the primary, then fallbacks
-            ordered = ["gemini-2.0-flash"] + [m for m in _FALLBACK_MODELS if m != "gemini-2.0-flash"]
-            for model in ordered:
-                try:
-                    print(f"[AICoach] Trying model: {model}")
-                    client = genai.GenerativeModel(model)
-                    # Lightweight test call
-                    resp = client.generate_content("hi", generation_config={"max_output_tokens": 5})
-                    _ = resp.text  # force evaluation to trigger any errors
-                    self._client = client
-                    self.model_name = model
-                    self._configured = True
-                    self._last_error = ""
-                    print(f"[AICoach] ✅ Using model: {model}")
-                    break
-                except Exception as e:
-                    err_str = str(e)
-                    self._last_error = err_str
-                    if "429" in err_str or "quota" in err_str.lower():
-                        print(f"[AICoach] ⚠️ Model {model} quota exceeded — trying next")
-                    elif "403" in err_str or "400" in err_str:
-                        print(f"[AICoach] 🚨 403 Forbidden or 400 Bad Request! This is usually a Region/Proxy restriction: {err_str}")
-                    else:
-                        print(f"[AICoach] Model {model} failed: {err_str[:120]}")
-                    continue
-
-            if not self._configured:
-                print(f"[AICoach] ❌ All models failed. Last error: {self._last_error}")
-        except ImportError:
-            print("[AICoach] ❌ google-generativeai not installed. Run: pip install google-generativeai")
-            self._last_error = "Library missing."
+            genai.configure(api_key=self.active_key)
+            self.model_name = self.available_models[self.current_model_index]
+            self._client = genai.GenerativeModel(self.model_name)
+            self._configured = True
+            self._last_error = ""
+            print(f"[AICoach] ✅ Configured with initial model: {self.model_name}")
         except Exception as e:
             print(f"[AICoach] ❌ Unexpected init error: {e}")
             print(traceback.format_exc())
             self._last_error = str(e)
+
+    def _failover(self) -> bool:
+        """Switch to next model or secondary API key. Returns True if failover successful."""
+        # Try next model first
+        self.current_model_index += 1
+        if self.current_model_index < len(self.available_models):
+            next_model = self.available_models[self.current_model_index]
+            print(f"[AICoach] 🔄 Switching to fallback model: {next_model}")
+            self.model_name = next_model
+            self._client = genai.GenerativeModel(self.model_name)
+            return True
+            
+        # If all models exhausted for this key, try secondary key
+        if self.active_key == self.api_key and self.secondary_key:
+            print("[AICoach] 🔄 Primary API key models exhausted. Switching to secondary API key.")
+            self.active_key = self.secondary_key
+            genai.configure(api_key=self.active_key)
+            self.current_model_index = 0
+            self.model_name = self.available_models[self.current_model_index]
+            self._client = genai.GenerativeModel(self.model_name)
+            return True
+            
+        return False
+
+    def _generate_with_fallback(self, prompt: str):
+        """Wrapper to handle 429 quotas by falling back to other models or a secondary API key."""
+        if not self.is_ready:
+            raise Exception(f"AI not configured: {self._last_error}")
+            
+        max_attempts = len(self.available_models) * (2 if self.secondary_key else 1)
+        attempts = 0
+        
+        while attempts < max_attempts:
+            try:
+                response = self._client.generate_content(prompt)
+                return response
+            except Exception as e:
+                err_str = str(e)
+                attempts += 1
+                if "429" in err_str or "quota" in err_str.lower() or "exhausted" in err_str.lower():
+                    print(f"[AICoach] ⚠️ Quota exceeded on {self.model_name} (Key: {self.active_key[:8]}).")
+                    if self._failover():
+                        continue
+                    else:
+                        raise Exception("All fallback models and API keys have exhausted their quotas.")
+                elif "403" in err_str or "400" in err_str:
+                    print(f"[AICoach] 🚨 403/400 Error: {err_str}")
+                    raise
+                else:
+                    raise
+        raise Exception("Maximum fallback attempts reached.")
 
     @property
     def is_ready(self) -> bool:
@@ -126,8 +161,8 @@ class AICoach:
 
         prompt = "\n".join(msgs)
         try:
-            print(f"[AICoach] Sending prompt ({len(prompt)} chars) to {self.model_name}")
-            response = self._client.generate_content(prompt)
+            print(f"[AICoach] Sending prompt ({len(prompt)} chars)")
+            response = self._generate_with_fallback(prompt)
             reply = response.text.strip()
             print(f"[AICoach] Got reply ({len(reply)} chars)")
             return reply
@@ -135,8 +170,8 @@ class AICoach:
             err_str = str(e)
             print(f"[AICoach] Chat error: {err_str}")
             print(traceback.format_exc())
-            if "429" in err_str or "quota" in err_str.lower():
-                return f"I'm temporarily unavailable due to API quota limits. Error details: {err_str}"
+            if "quota" in err_str.lower() or "exhausted" in err_str.lower():
+                return f"I'm temporarily unavailable due to API quota limits across all backup models. Please try again later."
             elif "403" in err_str or "400" in err_str:
                 return f"Region/Proxy Restriction Error (403/400): {err_str}"
             return f"I encountered an API issue. Error details: {err_str}"
@@ -166,7 +201,7 @@ Respond ONLY with valid JSON (no markdown code blocks):
   "confidence": "<low|medium|high>"
 }}"""
         try:
-            response = self._client.generate_content(prompt)
+            response = self._generate_with_fallback(prompt)
             text = response.text.strip()
             # Clean markdown wrappers
             if "```" in text:
@@ -202,7 +237,7 @@ Respond ONLY with valid JSON:
   "reasoning": "<1-2 sentence explanation>"
 }}"""
         try:
-            response = self._client.generate_content(prompt)
+            response = self._generate_with_fallback(prompt)
             text = response.text.strip()
             if "```" in text:
                 text = text[text.find("{"):text.rfind("}")+1]
@@ -225,7 +260,7 @@ Respond ONLY with valid JSON:
             prompt += f"Context: {prev_summary}\n"
 
         try:
-            response = self._client.generate_content(prompt)
+            response = self._generate_with_fallback(prompt)
             return response.text.strip()
         except Exception:
             return "Great effort today! Keep pushing for progress."

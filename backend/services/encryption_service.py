@@ -9,7 +9,7 @@ from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 from dotenv import load_dotenv
 
-load_dotenv()
+load_dotenv('config.env')
 
 # We derive the encryption key from SECRET_KEY to ensure persistence
 SECRET_KEY = os.getenv("SECRET_KEY", "peakform_dev_secret_must_be_long")

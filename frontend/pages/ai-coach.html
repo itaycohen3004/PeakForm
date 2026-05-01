@@ -13,7 +13,7 @@
   <div class="sidebar-overlay" id="sidebar-overlay"></div>
   <aside class="sidebar" id="sidebar"></aside>
 
-  <main class="main-content" style="padding-bottom:0;max-height:100vh;display:flex;flex-direction:column">
+  <main class="main-content" style="padding-bottom:0;height:100dvh;display:flex;flex-direction:column">
     <div class="page-header flex-between" style="flex-shrink:0">
       <div>
         <h1>🤖 AI Coach</h1>
@@ -246,8 +246,11 @@
     
     @media (max-width: 768px) {
       .main-content { 
-        max-height: calc(100dvh - 80px) !important; 
+        height: 100dvh !important;
+        max-height: 100dvh !important;
+        padding-bottom: calc(65px + env(safe-area-inset-bottom)) !important;
       }
+      .chat-input-area { padding-bottom: var(--space-md) !important; }
     }
 
     .quick-prompts {

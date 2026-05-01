@@ -1,0 +1,22 @@
+# PeakForm Professional Web Architecture
+
+## Deployment Flow & Installation
+
+**CRITICAL FIRST STEP**: Before you attempt to run the application, you must install all required dependencies to ensure the Flask backend and AI logic can function properly.
+
+Step 1: Install Dependencies:
+Run the following command in your terminal from the project root:
+> pip install -r requirements.txt
+
+Step 2: Environment Setup:
+Open `config.env` and paste your primary/secondary keys.
+- `GEMINI_API_KEY`: Your primary Google AI Studio key.
+- `GEMINI_SECONDARY_API_KEY`: Your fallback Google AI Studio key.
+- Note: This file also acts as the source of truth for your Flask `SECRET_KEY`.
+
+Step 3: Run the Server:
+Start the Flask backend by running:
+> python -m backend.app
+
+Step 4: Access the Application:
+Open your browser at https://127.0.0.1:5000 and bypass the SSL warning (due to adhoc development certificates).

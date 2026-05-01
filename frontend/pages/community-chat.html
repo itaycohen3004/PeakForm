@@ -8,41 +8,49 @@
   <link rel="stylesheet" href="/static/css/components.css">
   <link rel="stylesheet" href="/static/css/workout.css">
   <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+  <style>
+    @media (max-width: 768px) {
+      .chat-container { display: flex !important; flex-direction: column !important; }
+      #room-list-pane { width: 100%; flex: 1; }
+      #chat-pane { width: 100%; display: none; }
+      .main-content { padding-bottom: calc(65px + env(safe-area-inset-bottom)) !important; }
+    }
+  </style>
 </head>
 <body class="app-layout">
   <button class="mobile-menu-btn" id="mobile-menu-btn">☰</button>
   <div class="sidebar-overlay" id="sidebar-overlay"></div>
   <aside class="sidebar" id="sidebar"></aside>
 
-  <main class="main-content" style="padding-bottom:0">
-    <div class="page-header flex-between">
+  <main class="main-content" style="padding-bottom:0;height:100dvh;display:flex;flex-direction:column">
+    <div class="page-header flex-between" style="flex-shrink:0">
       <div><h1>Community Chats</h1><p>Real-time group discussions</p></div>
       <a href="/community.html" class="btn btn-outline btn-sm">📰 Feed</a>
     </div>
 
-    <div class="grid-2" style="height:calc(100vh - 180px);gap:var(--space-lg)">
+    <div class="chat-container" id="chat-container" style="flex:1;min-height:0;gap:var(--space-lg);display:grid;grid-template-columns:1fr 1fr">
       <!-- Room list -->
-      <div style="display:flex;flex-direction:column;gap:var(--space-md)">
+      <div id="room-list-pane" style="display:flex;flex-direction:column;gap:var(--space-md);overflow-y:auto;padding-bottom:20px">
         <div id="rooms-list"><div class="skeleton skeleton-block"></div></div>
       </div>
 
       <!-- Chat area -->
-      <div>
-        <div id="chat-placeholder" class="card" style="height:100%;display:flex;align-items:center;justify-content:center;text-align:center">
+      <div id="chat-pane" style="display:flex;flex-direction:column;height:100%;min-height:0">
+        <div id="chat-placeholder" class="card" style="flex:1;display:flex;align-items:center;justify-content:center;text-align:center">
           <div><div class="empty-icon">💬</div><h3>Select a chat room</h3><p>Join a room to start chatting</p></div>
         </div>
-        <div id="chat-area" style="display:none;height:100%">
-          <div class="chat-window" style="height:100%">
-            <div style="padding:var(--space-md) var(--space-lg);border-bottom:1px solid var(--bg-border);display:flex;align-items:center;justify-content:space-between">
+        <div id="chat-area" style="display:none;flex:1;min-height:0">
+          <div class="chat-window" style="height:100%;display:flex;flex-direction:column">
+            <div style="padding:var(--space-md) var(--space-lg);border-bottom:1px solid var(--bg-border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0">
               <div>
                 <div style="font-weight:700" id="room-name"></div>
                 <div style="font-size:.75rem;color:var(--text-muted)"><span id="online-count">0</span> online</div>
               </div>
               <button class="btn btn-ghost btn-sm" onclick="leaveRoom()">Leave</button>
             </div>
-            <div class="chat-messages" id="chat-messages"></div>
-            <div class="chat-input-row">
-              <input type="text" id="chat-input" class="form-control" placeholder="Message..." onkeydown="if(event.key==='Enter')sendMsg()">
+            <div class="chat-messages" id="chat-messages" style="flex:1;overflow-y:auto;padding:var(--space-md)"></div>
+            <div class="chat-input-row" style="flex-shrink:0;display:flex;gap:8px;padding:var(--space-md);border-top:1px solid var(--bg-border)">
+              <input type="text" id="chat-input" class="form-control" placeholder="Message..." onkeydown="if(event.key==='Enter')sendMsg()" style="flex:1">
               <button class="btn btn-primary btn-icon" onclick="sendMsg()" style="border-radius:50%;width:44px;height:44px;flex-shrink:0">↑</button>
             </div>
           </div>
@@ -139,7 +147,13 @@
       }
       CURRENT_ROOM = roomId;
       document.getElementById('chat-placeholder').style.display = 'none';
-      document.getElementById('chat-area').style.display = 'block';
+      document.getElementById('chat-area').style.display = 'flex';
+      
+      if (window.innerWidth <= 768) {
+        document.getElementById('room-list-pane').style.display = 'none';
+        document.getElementById('chat-pane').style.display = 'flex';
+      }
+      
       document.getElementById('room-name').textContent = name || `Room ${roomId}`;
 
       socket.emit('join_room', { room_id: roomId, user_id: user.user_id, display_name: displayName });
@@ -189,6 +203,12 @@
       CURRENT_ROOM = null;
       document.getElementById('chat-placeholder').style.display = 'flex';
       document.getElementById('chat-area').style.display = 'none';
+      
+      if (window.innerWidth <= 768) {
+        document.getElementById('room-list-pane').style.display = 'flex';
+        document.getElementById('chat-pane').style.display = 'none';
+      }
+      
       await loadRooms();
     }
 

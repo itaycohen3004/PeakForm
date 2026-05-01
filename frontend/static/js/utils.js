@@ -264,7 +264,10 @@ async function renderSidebar() {
         <span class="nav-icon">💪</span><span>Workout</span>
       </a>
       <a href="/ai-coach.html" class="bottom-nav-item" data-page="ai-coach">
-        <span class="nav-icon">🤖</span><span>Coach</span>
+        <span class="nav-icon">🤖</span><span>AI Coach</span>
+      </a>
+      <a href="/community-chat.html" class="bottom-nav-item" data-page="community-chat">
+        <span class="nav-icon">💬</span><span>Groups</span>
       </a>
       <a href="/profile.html" class="bottom-nav-item" data-page="profile">
         <span class="nav-icon">👤</span><span>Profile</span>
