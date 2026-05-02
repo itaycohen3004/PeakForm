@@ -112,6 +112,53 @@
     </div>
   </div>
 
+  <!-- Edit exercise modal (Admin) -->
+  <div class="modal-backdrop" id="edit-modal" style="display:none" onclick="if(event.target===this)closeModal('edit-modal')">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 class="modal-title">Edit Exercise</h3>
+        <button class="modal-close" onclick="closeModal('edit-modal')">✕</button>
+      </div>
+      <form onsubmit="saveEditExercise(event)">
+        <input type="hidden" id="edit-id">
+        <div class="form-group mb-md">
+          <label class="form-label">Exercise Name</label>
+          <input type="text" id="edit-name" class="form-control" required>
+        </div>
+        <div class="form-row mb-md">
+          <div class="form-group">
+            <label class="form-label">Category</label>
+            <select id="edit-cat" class="form-control">
+              <option value="chest">Chest</option><option value="back">Back</option>
+              <option value="shoulders">Shoulders</option><option value="arms">Arms</option>
+              <option value="legs">Legs</option><option value="core">Core</option>
+              <option value="full_body">Full Body</option><option value="skill">Skill</option>
+              <option value="cardio">Cardio</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Set Type</label>
+            <select id="edit-stype" class="form-control">
+              <option value="reps_weight">Reps + Weight</option>
+              <option value="reps_only">Reps only</option>
+              <option value="time_only">Time only</option>
+              <option value="time_weight">Time + Weight</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-group mb-md">
+          <label class="form-label">Muscles / Tags</label>
+          <input type="text" id="edit-muscles" class="form-control" placeholder="e.g. chest, triceps">
+        </div>
+        <div class="form-group mb-md">
+          <label class="form-label">Equipment</label>
+          <input type="text" id="edit-equipment" class="form-control" placeholder="e.g. barbell, bench">
+        </div>
+        <button type="submit" class="btn btn-primary btn-full">Save Changes</button>
+      </form>
+    </div>
+  </div>
+
   <div id="toast-container" class="toast-container"></div>
   <script src="/static/js/utils.js"></script>
   <script src="/static/js/api.js"></script>
@@ -178,8 +225,12 @@
           grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1"><div class="empty-icon">🔍</div><h3>No exercises found</h3><p>Try a different search or <button class="btn btn-ghost btn-sm" onclick="openModal('custom-modal')">create a custom one</button></p></div>`;
           return;
         }
+        
+        const user = getUser();
+        const isAdmin = user && user.role === 'admin';
+
         grid.innerHTML = data.map(ex => `
-          <div class="card card-sm">
+          <div class="card card-sm" id="ex-card-${ex.id}">
             <div class="flex-between mb-sm">
               <span style="font-size:1.3rem">${categoryIcon(ex.category)}</span>
               ${setTypeBadge(ex.set_type)}
@@ -190,10 +241,18 @@
             </div>
             <div style="font-size:.75rem;color:var(--text-muted)">${ex.category.replace('_',' ')} · ${ex.muscles_tags || ex.muscles || ''}</div>
             ${ex.equipment ? `<div style="font-size:.7rem;color:var(--text-xmuted);margin-top:4px">🛠 ${ex.equipment}</div>` : ''}
+            
+            ${isAdmin ? `
+            <div style="margin-top:12px; display:flex; gap:6px; border-top:1px solid rgba(255,255,255,0.05); padding-top:8px">
+              <button class="btn btn-ghost btn-sm" onclick="openEditExercise(${ex.id}, '${escHtml(ex.name)}', '${ex.category}', '${ex.set_type}', '${escHtml(ex.muscles_tags || ex.muscles || '')}', '${escHtml(ex.equipment || '')}')">✎ Edit</button>
+              <button class="btn btn-ghost btn-sm" style="color:var(--red)" onclick="deleteExercise(${ex.id}, '${escHtml(ex.name)}')">🗑 Delete</button>
+            </div>
+            ` : ''}
           </div>
         `).join('');
       }, 200);
     }
+
 
     async function createCustom(e) {
       e.preventDefault();
@@ -229,6 +288,46 @@
         document.getElementById('selected-muscles-preview').textContent = 'None';
         document.getElementById('selected-equip-preview').textContent   = 'None';
         document.getElementById('custom-name').value = '';
+        loadExercises();
+      }
+    }
+
+    function openEditExercise(id, name, cat, stype, muscles, equipment) {
+      document.getElementById('edit-id').value = id;
+      document.getElementById('edit-name').value = name;
+      document.getElementById('edit-cat').value = cat || 'full_body';
+      document.getElementById('edit-stype').value = stype || 'reps_weight';
+      document.getElementById('edit-muscles').value = muscles || '';
+      document.getElementById('edit-equipment').value = equipment || '';
+      openModal('edit-modal');
+    }
+
+    async function saveEditExercise(e) {
+      e.preventDefault();
+      const id = document.getElementById('edit-id').value;
+      const res = await apiFetch(`/api/exercises/${id}`, {
+        method: 'PUT',
+        body: {
+          name: document.getElementById('edit-name').value,
+          category: document.getElementById('edit-cat').value,
+          set_type: document.getElementById('edit-stype').value,
+          muscles_tags: document.getElementById('edit-muscles').value,
+          equipment: document.getElementById('edit-equipment').value
+        }
+      });
+      if (!res._error) {
+        showToast('Exercise updated successfully', 'success');
+        closeModal('edit-modal');
+        loadExercises();
+      }
+    }
+
+    async function deleteExercise(id, name) {
+      if (!confirm(`Are you sure you want to delete "${name}"?`)) return;
+      
+      const res = await apiFetch(`/api/exercises/${id}`, { method: 'DELETE' });
+      if (!res._error) {
+        showToast('Exercise deleted', 'info');
         loadExercises();
       }
     }

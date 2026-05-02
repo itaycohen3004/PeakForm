@@ -225,3 +225,20 @@ def get_exercise_prs(user_id: int, exercise_id: int) -> dict:
         "max_reps": max_reps,
         "max_time_seconds": max_time,
     }
+
+
+def update_exercise(exercise_id: int, name: str, category: str, set_type: str, muscles_tags: str, equipment: str):
+    db = get_db()
+    db.execute("""
+        UPDATE exercises 
+        SET name = ?, category = ?, set_type = ?, muscles_tags = ?, equipment = ?
+        WHERE id = ?
+    """, (name, category, set_type, muscles_tags, equipment, exercise_id))
+    db.commit()
+
+
+def delete_exercise(exercise_id: int):
+    """Mark exercise as deleted instead of dropping to preserve foreign keys."""
+    db = get_db()
+    db.execute("UPDATE exercises SET status = 'deleted' WHERE id = ?", (exercise_id,))
+    db.commit()

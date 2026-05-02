@@ -13,6 +13,7 @@ from dotenv import load_dotenv
 from backend.services.encryption_service import encrypt_data, decrypt_data
 
 load_dotenv('config.env')
+load_dotenv('.env', override=True)
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 GEMINI_SECONDARY_API_KEY = os.getenv("GEMINI_SECONDARY_API_KEY", "")

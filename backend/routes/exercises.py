@@ -123,3 +123,31 @@ def create_custom():
         "message": "Exercise submitted for approval. It will appear once an admin reviews it.",
         "status": "pending",
     }), 201
+
+
+@exercises_bp.route("/<int:exercise_id>", methods=["PUT"])
+@require_auth
+@require_admin
+def update(exercise_id):
+    data = request.get_json(silent=True) or {}
+    name = (data.get("name") or "").strip()
+    category = data.get("category", "")
+    set_type = data.get("set_type", "")
+    muscles_tags = data.get("muscles_tags", "")
+    equipment = data.get("equipment", "")
+
+    if not name:
+        return jsonify({"error": "Exercise name required"}), 400
+
+    from backend.models.exercise import update_exercise
+    update_exercise(exercise_id, name, category, set_type, muscles_tags, equipment)
+    return jsonify({"message": "Exercise updated successfully."}), 200
+
+
+@exercises_bp.route("/<int:exercise_id>", methods=["DELETE"])
+@require_auth
+@require_admin
+def delete(exercise_id):
+    from backend.models.exercise import delete_exercise
+    delete_exercise(exercise_id)
+    return jsonify({"message": "Exercise deleted."}), 200

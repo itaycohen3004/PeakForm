@@ -4,7 +4,8 @@ from flask_cors import CORS
 from flask_socketio import SocketIO
 from dotenv import load_dotenv
 
-load_dotenv('.env')
+load_dotenv('config.env')
+load_dotenv('.env', override=True)
 
 from backend.models.db import init_db, close_db
 from backend.services.setup_service import ensure_admin_exists
