@@ -133,6 +133,7 @@
 
 .set-row:last-child { border-bottom: none; }
 
+/* צובע את הסט בירוק ברגע שהמתאמן סיים אותו! */
 .set-row.completed {
   opacity: .65;
 }
@@ -503,3 +504,14 @@
   0%, 80%, 100% { transform: translateY(0); }
   40% { transform: translateY(-6px); }
 }
+
+/*
+English Summary:
+This CSS file governs the styling of the Live Workout Logger. It handles complex flex/grid 
+layouts for exercise sets, the floating stopwatch timer, and active visual states (e.g., completed sets).
+
+סיכום בעברית:
+קובץ עיצוב המוקדש בלעדית ליומן האימונים. הוא מסדר את השורות של הסטים בתוך טבלאות חכמות 
+(Grid), צובע סט שהושלם בירוק זוהר (כדי לסמן הצלחה), ודואג שטיימר המנוחה ירחף בצורה יפה 
+מעל שאר התוכן.
+*/

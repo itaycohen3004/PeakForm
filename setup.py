@@ -49,3 +49,15 @@ def run_setup():
 
 if __name__ == "__main__":
     run_setup()
+
+"""
+English Summary:
+This is a one-time utility script used to initialize the application environment. It copies 
+the example environment file to generate a new '.env' file with a cryptographically secure, 
+randomized SECRET_KEY. It also creates required directories for database and uploads storage.
+
+סיכום בעברית:
+קובץ זה נועד לרוץ רק פעם אחת, ממש אחרי שמתקינים את הפרויקט. התפקיד שלו הוא להכין את סביבת
+העבודה: ליצור תיקיות שחסרות (כמו תיקיית העלאות ותמונות), ובעיקר - לייצר סיסמת אבטחה סודית ואקראית 
+לחלוטין שבה המערכת תשתמש.
+"""

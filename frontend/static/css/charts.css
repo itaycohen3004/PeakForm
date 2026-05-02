@@ -66,3 +66,13 @@
 .stat-card.blue { border-left: 3px solid var(--accent-blue); }
 .stat-card.success { border-left: 3px solid var(--success); }
 .stat-card.teal { border-left: 3px solid var(--accent-teal); }
+/*
+English Summary:
+This CSS file contains the specific styling rules for the dashboard charts and data visualizations. 
+It ensures the charts scale properly on mobile devices and that tooltips and legends match the app's aesthetic.
+
+סיכום בעברית:
+קובץ עיצוב (CSS) זה אחראי במיוחד על המראה של הגרפים הסטטיסטיים.
+הוא דואג שהגרפים לא יחתכו במסכים קטנים (כמו טלפונים ניידים), ושהצבעים של קווי ההתקדמות 
+ישדרו מראה מודרני ונקי.
+*/

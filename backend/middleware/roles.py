@@ -1,6 +1,7 @@
 """
 PeakForm Role-Based Access Control
-Keeps only essential Athlete/Admin roles.
+הקובץ שמגדיר הרשאות באתר. הוא בודק האם מי שמנסה
+להיכנס לדף מסוים הוא סתם "מתאמן" או "מנהל ראשי".
 """
 
 from functools import wraps
@@ -32,3 +33,15 @@ def require_admin(f):
 def require_athlete(f):
     """Shorthand for athlete-only routes."""
     return require_role("athlete")(f)
+
+"""
+English Summary:
+This middleware handles Role-Based Access Control (RBAC). It provides custom decorators 
+(@require_admin and @require_athlete) that wrap API routes, ensuring that only users with 
+the correct permission level can execute certain operations (like deleting another user's account).
+
+סיכום בעברית:
+קובץ זה מנהל את מערכת ה"דרגות" באתר. הוא מוודא שפעולות מסוכנות או ניהוליות (כמו מחיקת
+משתמשים מהאתר) יכולות להתבצע אך ורק על ידי משתמש עם תג "מנהל" (Admin). אם משתמש רגיל ינסה
+לעשות פעולת מנהל, הקובץ יעצור אותו מיד ויציג לו הודעת שגיאה.
+"""

@@ -96,7 +96,7 @@ class AICoach:
         
         self.active_key = self.api_key if self.api_key else self.secondary_key
         
-        self.available_models = ["gemini-2.0-flash", "gemini-1.5-pro", "gemini-1.5-flash"]
+        self.available_models = ["gemini-2.0-flash", "gemini-2.0-flash-lite", "gemini-2.0-pro-exp-02-05"]
         self.current_model_index = 0
         self.model_name = self.available_models[self.current_model_index]
         self._client = None
@@ -248,3 +248,15 @@ class UnifiedApp:
 if __name__ == "__main__":
     app = UnifiedApp()
     app.run()
+
+"""
+English Summary:
+This file is a standalone, monolithic demonstration of the project's core capabilities. It integrates 
+a secure SQLite database with bcrypt password hashing alongside an AI interface leveraging the Gemini API. 
+It features a command-line menu loop simulating user authentication and secure data interaction.
+
+סיכום בעברית:
+קובץ זה מהווה "מיני-אפליקציה" שמדגימה את יכולות הליבה של הפרויקט ללא הצורך להפעיל אתר שלם.
+הוא מאפשר פתיחת תפריט דרך חלון הפקודות המשלב התחברות מאובטחת, הרשמה עם הצפנת סיסמאות, 
+ואפשרות להתכתב עם הבינה המלאכותית (Gemini) ישירות ממסך הטקסט! זהו קובץ הדגמה למתכנתים ולבודקים.
+"""

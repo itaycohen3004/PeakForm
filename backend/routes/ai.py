@@ -1,5 +1,7 @@
 """
 AI coaching routes — conversational coaching and progression analysis.
+זהו המוח של האפליקציה! כאן אנחנו מחברים את המערכת שלנו לבינה המלאכותית (AI) 
+כדי שתשמש כמאמן כושר אישי למשתמש, תבנה לו אימונים ותייעץ לו בזמן אמת.
 """
 import json
 from flask import Blueprint, request, jsonify, g
@@ -37,6 +39,7 @@ def ai_status():
     return jsonify({"configured": configured}), 200
 
 
+# הפונקציה שאחראית על חדר הצ'אט האישי עם המאמן הווירטואלי (AI)
 @ai_bp.route("/chat", methods=["POST"])
 @require_auth
 def chat():
@@ -77,6 +80,7 @@ def clear_history():
     return jsonify({"message": "History cleared."}), 200
 
 
+# מבקש מהמאמן החכם לנתח את ההתקדמות שלנו בתרגיל מסוים לאורך זמן
 @ai_bp.route("/analyze/<int:exercise_id>", methods=["POST"])
 @require_auth
 def analyze_exercise(exercise_id):
@@ -288,6 +292,7 @@ def save_template():
     }), 201
 
 
+# פונקציה חכמה שממליצה לנו כמה משקל להרים וכמה חזרות לעשות *בסט הבא* שלנו בזמן אימון!
 @ai_bp.route("/suggest-next-set", methods=["POST"])
 @require_auth
 def suggest_next_set():
@@ -649,3 +654,17 @@ def suggest_all_sets():
     except Exception as e:
         print(f"[AI suggest-all-sets] AI failed, rule-based fallback: {e}")
         return jsonify(rule_result), 200
+
+"""
+English Summary:
+This large module connects the PeakForm application to Google's Gemini AI service. 
+It facilitates dynamic conversation with a virtual AI Coach, analyzes workout history to 
+suggest progressive overload per exercise (for both single next-sets and full workout predictions), 
+and translates AI responses into structured JSON templates that can be saved directly to the database.
+
+סיכום בעברית:
+קובץ זה מחבר בין האפליקציה שלנו לבין המוח החכם של גוגל (Gemini AI). הוא מאפשר למתאמן להתכתב עם
+מאמן כושר וירטואלי שמכיר את ההיסטוריה שלו. הקובץ יודע לקחת את ההיסטוריה של המתאמן (משקלים וחזרות),
+לשלוח אותה לבינה המלאכותית ולהחזיר המלצות מדויקות - כמה משקל להרים בסט הבא, או אפילו לבנות 
+תוכנית אימון שלמה לחודש הקרוב ולשמור אותה אוטומטית במסד הנתונים!
+"""

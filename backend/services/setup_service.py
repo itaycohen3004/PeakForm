@@ -1,6 +1,7 @@
 """
 setup_service.py — Automatic system initialization.
-Handles auto-admin creation on first run.
+קובץ ההפעלה הראשון של המערכת. הוא מוודא שתמיד יהיה מנהל
+ראשי לאתר כשהשרת עולה, כדי שלא נישאר בלי אחראי.
 """
 import os
 from backend.models.db import get_db_direct
@@ -35,5 +36,17 @@ def ensure_admin_exists():
         if user["role"] != "admin":
              print(f"⚠️ User {admin_email} exists but is not an admin. Updating role...")
              db = get_db_direct()
-             db.execute("UPDATE users SET role = 'admin' WHERE id = ?", (user["id"],))
              db.commit()
+
+"""
+English Summary:
+This service script automatically initializes the system environment upon startup. 
+Its primary function is to check the database for the existence of an administrator account. 
+If no admin is found, it automatically provisions a default admin account using credentials 
+from the environment variables, ensuring the platform is always accessible for management.
+
+סיכום בעברית:
+הקובץ הזה רץ באופן אוטומטי בכל פעם שמפעילים את השרת של האפליקציה. 
+התפקיד העיקרי שלו הוא לבדוק האם קיים מנהל (Admin) במערכת. אם הוא לא מוצא מנהל, 
+הוא יוצר בעצמו באופן אוטומטי את מנהל המערכת הראשון, כדי להבטיח שתמיד יהיה מישהו שיוכל לנהל את האתר.
+"""

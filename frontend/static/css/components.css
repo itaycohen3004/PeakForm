@@ -6,6 +6,7 @@
 /* ============================================================
    Buttons
    ============================================================ */
+/* עיצוב כפתורים גלובלי - עושה שהכפתור ייראה כמו כפתור אמיתי שאפשר ללחוץ עליו */
 .btn {
   display: inline-flex;
   align-items: center;
@@ -720,7 +721,8 @@ textarea.form-control { resize: vertical; min-height: 80px; }
    ============================================================ */
 @media (max-width: 768px) {
   /* Larger touch targets */
-  .btn {
+  /* עיצוב כפתורים גלובלי - עושה שהכפתור ייראה כמו כפתור אמיתי שאפשר ללחוץ עליו */
+.btn {
     min-height: 48px;
   }
   
@@ -738,3 +740,14 @@ textarea.form-control { resize: vertical; min-height: 80px; }
   .btn-primary:hover { box-shadow: 0 2px 12px rgba(139,92,246,.3) !important; }
   .btn-amber:hover { box-shadow: 0 2px 12px rgba(245,158,11,.3) !important; }
 }
+
+/*
+English Summary:
+This CSS file is the UI component library. It defines reusable styles for cards, buttons, 
+modals, inputs, and toast notifications, ensuring design consistency across all pages.
+
+סיכום בעברית:
+ספריית ה"לגו" של האתר! קובץ זה מגדיר את העיצוב לכל הכפתורים, החלונות הקופצים (Modals),
+תיבות הטקסט והכרטיסיות. ככה מתכנתים לא צריכים לעצב מחדש כפתור בכל עמוד, אלא פשוט 
+משתמשים בעיצוב המוכן שכאן כדי לשמור על אחידות מקצועית בכל האתר.
+*/

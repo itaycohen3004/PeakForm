@@ -1,11 +1,7 @@
 """
 PeakForm — AI coaching service using Google Gemini.
-OOP class: AICoach — satisfies academic OOP requirement.
-
-SETUP:
-  1. Get API key from: https://aistudio.google.com/
-  2. Add to .env: GEMINI_API_KEY=your_key_here
-  3. The app tries several Gemini models in order until one works.
+קובץ זה מתחבר למוח החכם של גוגל (Gemini) ומאפשר לאפליקציה לדבר עם המשתמשים, 
+לתת להם עצות על אימונים, להזהיר על עומס ולנתח התקדמות!
 """
 import os
 import json
@@ -24,14 +20,12 @@ print(f"[AICoach] Secondary API key loaded: {'YES' if GEMINI_SECONDARY_API_KEY e
 print(f"[AICoach] Preferred model: {GEMINI_MODEL}")
 
 # Models to try in order — newest / most reliable first.
-# gemini-2.0-flash is the recommended free-tier model as of 2025.
+# gemini-2.0-flash is the recommended model for speed and performance.
 _FALLBACK_MODELS = [
     "gemini-2.0-flash",
     "gemini-2.0-flash-lite",
-    "gemini-1.5-flash-latest",
-    "gemini-1.5-pro-latest",
-    "gemini-1.5-flash",
-    "gemini-1.5-pro",
+    "gemini-2.0-pro-exp-02-05", # Latest 2.0 experimental Pro
+    "gemini-2.0-flash-thinking-exp", # Advanced reasoning model
 ]
 
 import google.generativeai as genai
@@ -39,9 +33,9 @@ import traceback
 
 class AICoach:
     """
-    OOP representation of a PeakForm AI Coach.
-    Wraps Gemini API calls with athlete context building and fallback logic.
-    Satisfies academic OOP requirement.
+    המחלקה שמייצגת את 'המאמן החכם'.
+    היא לוקחת נתונים מהמתאמן, אורזת אותם בצורה ברורה, שולחת לגוגל, 
+    ומחזירה למתאמן תשובה בעברית פשוטה או באנגלית.
     """
 
     def __init__(self, api_key: str = None, model_name: str = None):
@@ -179,7 +173,10 @@ class AICoach:
         return self._client is not None
 
     def chat(self, user_message: str, context: str, history: list) -> str:
-        """Multi-turn coaching conversation."""
+        """
+        פונקציה המאפשרת למתאמן לנהל שיחה (צ'אט) עם המאמן החכם.
+        שומרת גם את היסטוריית השיחה כדי שהמאמן יזכור על מה דיברו.
+        """
         print(f"[AICoach] chat() called. is_ready={self._client is not None}")
         if not self.is_ready:
             msg = "The AI Coach is not available right now. Please check that GEMINI_API_KEY is set in your .env file."
@@ -215,7 +212,10 @@ class AICoach:
             return "The AI Coach is temporarily unavailable. Please try again in a moment."
 
     def analyze_exercise(self, context: str, exercise_name: str) -> dict:
-        """Return structured progression recommendations."""
+        """
+        הפונקציה מנתחת תרגיל ספציפי שהמתאמן עשה,
+        וממליצה לו איזה משקל וכמה חזרות לעשות באימון הבא!
+        """
         if not self.is_ready:
             return {
                 "next_reps": None,
@@ -255,7 +255,10 @@ Respond ONLY with valid JSON (no markdown code blocks):
             }
 
     def suggest_deadline(self, context: str, goal_data: dict) -> dict:
-        """Suggest a realistic deadline for a goal."""
+        """
+        הפונקציה בודקת מתי המתאמן יגיע למטרה שלו (למשל לרדת 5 קילו)
+        ונותנת יעד זמן הגיוני (למשל: ייקח לך 30 יום).
+        """
         if not self.is_ready:
             return {"suggested_deadline_days": None, "reasoning": "AI not configured."}
 
@@ -284,7 +287,9 @@ Respond ONLY with valid JSON:
             return {"suggested_deadline_days": None, "reasoning": f"Prediction unavailable."}
 
     def workout_recap(self, workout_data: dict, volume: float, prev_summary: str = None) -> str:
-        """Short motivational analysis of a just-completed workout."""
+        """
+        נותנת משפט מוטיבציה קצר וניתוח מהיר רגע אחרי שהמתאמן סיים אימון ומזיע.
+        """
         if not self.is_ready:
             return "Great session! Keep pushing — consistency is key."
 
@@ -332,7 +337,10 @@ When asked to create a full workout plan, provide an encouraging response AND ap
 
 
 def build_athlete_context(profile: dict, recent_workouts: list, goals: list) -> str:
-    """Build structured text prompt from athlete data."""
+    """
+    פונקציית עזר: אוספת את כל המידע על המתאמן (משקל, גיל, מטרות, היסטוריית אימונים)
+    ומייצרת מזה 'טקסט רקע' שמסביר לבינה המלאכותית מול מי היא עומדת.
+    """
     lines = ["=== ATHLETE PROFILE ==="]
     if profile:
         lines.append(
@@ -388,6 +396,9 @@ def analyze_workout_recap(workout: dict, volume: float, prev_summary: str = None
 
 
 def save_ai_message(user_id: int, role: str, message: str, context_snapshot: str = None):
+    """
+    שומרת את השיחות עם הבינה המלאכותית בבסיס הנתונים שלנו (כמובן בצורה מוצפנת!)
+    """
     try:
         from backend.models.db import get_db
         db = get_db()
@@ -416,3 +427,17 @@ def get_ai_history(user_id: int, limit: int = 20) -> list:
         return msgs
     except Exception:
         return []
+
+"""
+English Summary:
+This service interfaces directly with Google's Gemini AI API using the google-generativeai SDK. 
+It encapsulates the connection logic, fallback mechanisms (to handle rate limits or API key errors), 
+and prompts construction. It generates structured context strings from the athlete's database profile 
+and provides domain-specific methods for general chat, exercise progression analysis, and goal deadline prediction.
+
+סיכום בעברית:
+הקובץ הזה הוא "המנוע החכם" של האפליקציה שמתקשר מול השרתים של גוגל (Gemini AI).
+הוא יודע להתחבר באמצעות מפתח סודי, ואם יש בעיה בחיבור (למשל עומס בשרתים של גוגל), הוא מנסה
+אוטומטית להתחבר שוב דרך מודלים חלופיים כדי שהמתאמן תמיד יקבל תשובה. בנוסף, הקובץ מכין עבור
+הבינה המלאכותית את כל נתוני המשתמש (משקל, אימונים קודמים) כדי שהיא תוכל לתת לו עצות מותאמות אישית.
+"""

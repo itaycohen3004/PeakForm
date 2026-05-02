@@ -168,3 +168,16 @@ with open(ai_py_path, 'a', encoding='utf-8') as f:
     f.write(endpoint)
 
 print(f"Appended suggest-all-sets to {ai_py_path}")
+
+"""
+English Summary:
+A utility script used during development to patch the 'ai.py' route file with a new, optimized 
+endpoint ('/suggest-all-sets'). This endpoint was designed to reduce API latency by generating 
+recommendations for an entire multi-set exercise in a single Gemini API call rather than sequentially.
+
+סיכום בעברית:
+זהו סקריפט (קובץ עזר) של מתכנתים שנועד להוסיף באופן אוטומטי פונקציה חדשה לשרת. 
+הפונקציה הזו מייעלת מאוד את העבודה מול הבינה המלאכותית: במקום לבקש ממנה ייעוץ 
+לכל סט של תרגיל בנפרד (מה שלוקח הרבה זמן ותוקע את האפליקציה), הפונקציה מבקשת
+ממנה לתכנן את כל הסטים של התרגיל מראש, בשאילתה אחת בודדת!
+"""

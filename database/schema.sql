@@ -520,3 +520,17 @@ INSERT OR IGNORE INTO chat_rooms (name, description, room_type) VALUES
 ('Gym Training', 'Dedicated to barbell lifting, machines, and gym-based strength.', 'public'),
 ('Calisthenics', 'Skills, progressions, and bodyweight training discussions.', 'public'),
 ('Progress & PRs', 'Share your personal records and weight milestones here!', 'public');
+
+/*
+English Summary:
+This is the foundational database schema definition file. It contains the raw SQL commands 
+to construct all the core tables, indexes, and relationships for the PeakForm application, 
+including authentication, workouts, chat, notifications, and AI logs. It also seeds initial 
+data for the exercise library and default chat rooms.
+
+סיכום בעברית:
+קובץ זה הוא התוכנית האדריכלית (השרטוט) של מסד הנתונים. כאן רשומות פקודות ה-SQL 
+שבונות את כל ה"טבלאות" במערכת - החל מטבלת משתמשים, דרך אימונים ומטרות, ועד 
+להודעות צ'אט. בנוסף, הקובץ מכניס מראש רשימה ענקית של עשרות תרגילי כושר (Seed Data)
+כדי שכשהמערכת עולה בפעם הראשונה, לספריית התרגילים כבר יהיה תוכן עשיר להציע למתאמן!
+*/

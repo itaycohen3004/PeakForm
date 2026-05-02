@@ -1,9 +1,10 @@
 /**
- * PeakForm — Shared Utilities
- * Core helpers used across all pages.
+ * utils.js — קובץ הכלים של האתר (PeakForm)
+ * הקובץ הזה מלא בפונקציות קטנות שכולם משתמשים בהן בכל הדפים באתר.
+ * למשל: להציג הודעות קופצות, לשמור מידע, או לצייר תפריט.
  */
 
-// ── Toast ──────────────────────────────────────────────────
+// ── Toast (הודעות קופצות בתחתית המסך) ──────────────────────────
 
 (function initToasts() {
   let c = document.getElementById('toast-container');
@@ -25,7 +26,7 @@ function showToast(message, type = 'info', duration = 4000) {
   setTimeout(() => { if (t.parentElement) { t.classList.add('removing'); setTimeout(() => t.remove(), 300); } }, duration);
 }
 
-// ── Loading ─────────────────────────────────────────────────
+// ── Loading (מסך טעינה שמסתובב) ──────────────────────────────
 
 let _loadingCount = 0, _loadingEl = null;
 
@@ -44,7 +45,7 @@ function hideLoading() {
   if (_loadingCount === 0 && _loadingEl) { _loadingEl.remove(); _loadingEl = null; }
 }
 
-// ── Date Formatting ─────────────────────────────────────────
+// ── Date Formatting (עיצוב של תאריכים ושעות) ──────────────────
 
 function formatDate(d) {
   if (!d) return '—';
@@ -72,7 +73,7 @@ function formatTimeAgo(d) {
 function todayISO() { return new Date().toISOString().slice(0, 10); }
 function isoNow() { return new Date().toISOString().slice(0, 16); }
 
-// ── Duration formatting ─────────────────────────────────────
+// ── Duration formatting (הצגת זמן בצורה יפה כמו 1h 30m) ───────
 
 function formatSeconds(s) {
   if (!s) return '—';
@@ -86,7 +87,7 @@ function formatDuration(mins) {
   return h ? `${h}h ${m}m` : `${m}m`;
 }
 
-// ── Badges ──────────────────────────────────────────────────
+// ── Badges (תגיות צבעוניות וקטנות עם מילים כמו "מנהל" או "חזה") ──
 
 function roleBadge(role) {
   const map = { athlete: 'violet', admin: 'amber' };
@@ -121,7 +122,7 @@ function goalTypeBadge(type) {
   return `<span class="badge badge-muted">${map[type] || type}</span>`;
 }
 
-// ── Progress Bars ───────────────────────────────────────────
+// ── Progress Bars (מד התקדמות שיורד ועולה) ──────────────────
 
 function progressBar(current, target, cls = '') {
   const pct = Math.min(100, Math.round((current / Math.max(target, 0.01)) * 100));
@@ -134,7 +135,7 @@ function progressBar(current, target, cls = '') {
   `;
 }
 
-// ── Auth Helpers ─────────────────────────────────────────────
+// ── Auth Helpers (כלי התחברות ובדיקה מי מחובר למערכת) ────────
 
 function getToken() { return localStorage.getItem('pf_token'); }
 function getUser() { try { return JSON.parse(localStorage.getItem('pf_user') || 'null'); } catch { return null; } }
@@ -161,7 +162,7 @@ function requireAuth() {
 
 function getDashboardUrl() { return '/dashboard.html'; }
 
-// ── Sidebar ──────────────────────────────────────────────────
+// ── Sidebar (התפריט צד שמופיע בכל העמודים באתר) ───────────────
 
 async function renderSidebar() {
   const sidebar = document.getElementById('sidebar');
@@ -312,7 +313,7 @@ async function renderSidebar() {
   }
 }
 
-// ── Logout ───────────────────────────────────────────────────
+// ── Logout (התנתקות מהמערכת) ──────────────────────────────────
 
 async function logout() {
   try { await apiFetch('/api/auth/logout', { method: 'POST' }); } catch { }
@@ -320,7 +321,7 @@ async function logout() {
   window.location.href = '/login.html';
 }
 
-// ── Mobile Sidebar ───────────────────────────────────────────
+// ── Mobile Sidebar (תפריט מיוחד שמותאם למסכים של טלפונים) ─────
 
 function initMobileSidebar() {
   const sidebar = document.getElementById('sidebar');
@@ -336,7 +337,7 @@ function initMobileSidebar() {
   });
 }
 
-// ── XSS Protection ───────────────────────────────────────────
+// ── XSS Protection (הגנה מפני האקרים שמנסים לכתוב קוד זדוני) ──
 
 function escHtml(str) {
   if (!str) return '';
@@ -348,7 +349,7 @@ function escHtml(str) {
     .replace(/'/g, '&#039;');
 }
 
-// ── Form Helpers ─────────────────────────────────────────────
+// ── Form Helpers (כלים לעבודה עם טפסים והצגת שגיאות) ──────────
 
 function clearFieldErrors(form) {
   form.querySelectorAll('.field-error').forEach(e => e.remove());
@@ -368,7 +369,7 @@ function showFieldErrors(errors) {
   }
 }
 
-// ── Workout helpers ──────────────────────────────────────────
+// ── Workout helpers (חישובים מיוחדים שקשורים לאימונים, סטים ומשקל)
 
 const CATEGORY_ICONS = {
   chest: '🫀', back: '🦾', shoulders: '💪', arms: '💪',
@@ -408,7 +409,7 @@ function calc1RM(weight, reps) {
   return Math.round(weight * (1 + reps / 30) * 10) / 10; // Epley formula
 }
 
-// ── Weight color logic ────────────────────────────────────────
+// ── Weight color logic (צביעת טקסט לירוק/אדום אם ירדנו/עלינו במשקל)
 
 function weightChangeColor(change, goalDirection) {
   // goalDirection: 'gain' | 'lose' | 'maintain'
@@ -421,7 +422,7 @@ function weightChangeColor(change, goalDirection) {
   return 'text-muted';
 }
 
-// ── Modal helpers ─────────────────────────────────────────────
+// ── Modal helpers (פתיחה וסגירה של חלונות קופצים גדולים) ──────
 
 function openModal(id) {
   const el = document.getElementById(id);
@@ -438,7 +439,7 @@ function closeModalOnBackdrop(modalId) {
   if (el) el.addEventListener('click', e => { if (e.target === el) closeModal(modalId); });
 }
 
-// ── Confetti ──────────────────────────────────────────────────
+// ── Confetti (הזיקוקים והבלונים שקופצים שיש לך הישג!) ────────
 
 function launchConfetti(duration = 3000) {
   const colors = ['#8B5CF6', '#14B8A6', '#F59E0B', '#10B981', '#3B82F6'];
@@ -476,7 +477,7 @@ if (!document.getElementById('confetti-style')) {
   document.head.appendChild(style);
 }
 
-// ── Clipboard ────────────────────────────────────────────────
+// ── Clipboard (העתקת טקסט ללוח של המחשב) ──────────────────────
 
 async function copyToClipboard(text) {
   try {
@@ -489,7 +490,7 @@ async function copyToClipboard(text) {
   }
 }
 
-// ── Draft / AutoSave helpers ──────────────────────────────────
+// ── Draft / AutoSave helpers (שמירה אוטומטית אם בטעות סגרנו את הדף)
 
 function saveDraft(key, data) {
   try { localStorage.setItem(`pf_draft_${key}`, JSON.stringify({ data, ts: Date.now() })); } catch { }
@@ -514,8 +515,7 @@ function hasDraft(key) {
   return !!localStorage.getItem(`pf_draft_${key}`);
 }
 
-// ── DOM Ready ─────────────────────────────────────────────────
-
+// ── DOM Ready (הפעלת פונקציות רק אחרי שהאתר סיים להיטען) ──────
 function onReady(fn) {
   // Force HTTPS in production
   if (window.location.protocol === 'http:' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
@@ -525,3 +525,16 @@ function onReady(fn) {
   if (document.readyState !== 'loading') fn();
   else document.addEventListener('DOMContentLoaded', fn);
 }
+
+/*
+English Summary:
+This file is the core utility library for the frontend. It provides globally accessible 
+helper functions for date/time formatting, parsing data, rendering badges and progress bars, 
+managing client-side authentication tokens (localStorage), rendering the dynamic application sidebar, 
+displaying UI toast notifications, and securely sanitizing HTML to prevent cross-site scripting (XSS).
+
+סיכום בעברית:
+זהו ה"ארגז כלים" של האתר! קובץ זה מכיל המון פונקציות עזר קטנות שמשמשות את כל שאר הקבצים.
+יש פה כלים להצגת תאריכים בצורה יפה, חישובים מתמטיים קטנים (כמו חישוב משקל מרבי), 
+פונקציות להצגת הודעות קופצות (Toasts), יצירת אנימציית זיקוקים, והגנה על האתר מפני פריצות.
+*/

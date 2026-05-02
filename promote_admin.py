@@ -32,3 +32,13 @@ if __name__ == "__main__":
         print("Usage: python promote_admin.py user@example.com")
         sys.exit(1)
     promote(sys.argv[1])
+
+"""
+English Summary:
+A command-line utility designed to escalate a regular user's privileges to 'admin'. It queries 
+the database for the user's encrypted email via a blind index and updates their role.
+
+סיכום בעברית:
+כלי מיוחד למנהל המערכת. הוא מאפשר לקחת משתמש רגיל ולהפוך אותו למנהל בעל הרשאות מלאות
+באמצעות הרצת פקודה פשוטה בחלון השחור (הטרמינל).
+"""

@@ -127,3 +127,13 @@
   color: var(--text-muted);
   line-height: 1.4;
 }
+
+/*
+English Summary:
+This CSS file is dedicated to the Community Chat interface. It styles the message bubbles, 
+the sticky input area at the bottom of the screen, and manages the scrollable message container.
+
+סיכום בעברית:
+קובץ העיצוב של חדר הצ'אט! הוא צובע את הבועות של ההודעות (כמו בוואטסאפ), 
+דואג שתיבת הטקסט תמיד תישאר צמודה לתחתית המסך, ומטפל בהסתרת פס הגלילה למראה נקי יותר.
+*/

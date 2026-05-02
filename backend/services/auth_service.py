@@ -1,5 +1,7 @@
 """
 Authentication service — bcrypt hashing, JWT generation, 2FA codes.
+קובץ זה אחראי על יצירת סיסמאות קשות לפיצוח (הצפנה מתמטית),
+ייצור תעודות זהות דיגיטליות (JWT) ובדיקת תקינות סיסמאות.
 """
 
 import os
@@ -21,7 +23,10 @@ JWT_EXPIRY_HOURS = int(os.getenv("JWT_EXPIRY_HOURS", "24"))
 # ============================================================
 
 def hash_password(password: str) -> str:
-    """Hash a plain password with bcrypt. Returns a UTF-8 string."""
+    """
+    מקבלת סיסמה רגילה (למשל 123456) והופכת אותה לקוד ארוך ומוצפן 
+    באמצעות אלגוריתם שנקרא bcrypt.
+    """
     return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
 
 
@@ -120,3 +125,16 @@ def verify_2fa_code(user_id: int, code: str) -> bool:
         db.commit()
         return True
     return False
+
+"""
+English Summary:
+This service handles core authentication utilities. It hashes and verifies passwords using bcrypt,
+enforces strict password strength requirements (uppercase, numbers, special characters), and manages
+JSON Web Tokens (JWT) for secure, stateless user sessions. It also provides helper functions for
+generating and verifying Two-Factor Authentication (2FA) codes.
+
+סיכום בעברית:
+קובץ זה מספק שירותי אבטחה בסיסיים למערכת. הוא אחראי להצפין סיסמאות של מתאמנים בעזרת אלגוריתם מתקדם (Bcrypt)
+כדי למנוע גניבות. הוא גם מייצר תעודות כניסה דיגיטליות (JWT) שנותנות למתאמן גישה לאפליקציה למשך 24 שעות.
+בנוסף, הקובץ מוודא שמשתמשים לא בוחרים סיסמאות חלשות מדי (כמו 123456).
+"""

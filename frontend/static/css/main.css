@@ -8,6 +8,7 @@
 /* ============================================================
    Design Tokens
    ============================================================ */
+/* משתנים (Variables) - כאן נשמור צבעים כמו ירוק ניאון כדי להשתמש בהם בכל האתר */
 :root {
   /* Brand palette */
   --violet:        #8B5CF6;
@@ -81,6 +82,7 @@
 
 html { font-size: 15px; scroll-behavior: smooth; }
 
+/* הגדרות של כל העמוד (רקע שחור, פונטים) */
 body {
   font-family: 'Inter', system-ui, sans-serif;
   background: var(--bg-base);
@@ -835,3 +837,14 @@ h1,h2,h3,h4,h5,h6 {
 .progress-bar.amber  { background: var(--gradient-amber); }
 .progress-bar.green  { background: linear-gradient(90deg, var(--teal), var(--green)); }
 .progress-bar.red    { background: linear-gradient(90deg, var(--red), #DC2626); }
+
+/*
+English Summary:
+This is the foundational CSS file. It defines the global CSS variables (colors, fonts, spacing), 
+resets default browser margins, and establishes the overarching dark-mode aesthetic and layout grid.
+
+סיכום בעברית:
+הקובץ הראשי והבסיסי ביותר של העיצוב. כאן מוגדרת פלטת הצבעים הכללית (משתני CSS), הגופנים 
+של האתר, והוא דואג לאפס את העיצוב המכוער שמגיע כברירת מחדל מהדפדפנים, כדי שהאתר שלנו
+ייראה מודרני וחלק (Dark Mode).
+*/

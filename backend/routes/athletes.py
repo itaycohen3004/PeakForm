@@ -1,5 +1,7 @@
 """
 PeakForm — Athletes routes (profile, stats, dashboard, PR tracking).
+קובץ זה מנהל את הפרופיל של המתאמן! כאן רואים את לוח הבקרה (הדשבורד),
+את התמונה שלו, את הסטטיסטיקות והשיאים האישיים שלו.
 """
 import os
 from flask import Blueprint, request, jsonify, g
@@ -15,6 +17,7 @@ from backend.models.db import get_db
 athletes_bp = Blueprint("athletes", __name__, url_prefix="/api/athletes")
 
 
+# מביא לנו את פרופיל המתאמן (מידע אישי, שם, גיל וכו')
 @athletes_bp.route("/profile", methods=["GET"])
 @require_auth
 def get_profile():
@@ -25,6 +28,7 @@ def get_profile():
     return jsonify(athlete.to_dict()), 200
 
 
+# עדכון הפרופיל האישי (למשל אם המתאמן רוצה לשנות את המשקל יעד שלו)
 @athletes_bp.route("/profile", methods=["PUT"])
 @require_auth
 def update_profile():
@@ -42,23 +46,29 @@ def update_profile():
     return jsonify({"message": "Profile updated."}), 200
 
 
+# העלאת תמונת פרופיל מהטלפון או המחשב
 @athletes_bp.route("/avatar", methods=["POST"])
 @require_auth
 def upload_avatar():
-    if "avatar" not in request.files:
+    if "avatar" not in request.files: # בודקים אם באמת שלחו קובץ
         return jsonify({"error": "No file provided"}), 400
     file = request.files["avatar"]
     if file.filename == "":
         return jsonify({"error": "No file selected"}), 400
+        
+    # שומרים את התמונה בתיקייה מיוחדת בתוך פרויקט השרת
     upload_dir = os.path.join(os.getcwd(), "frontend", "static", "uploads", "avatars")
     os.makedirs(upload_dir, exist_ok=True)
     filename = secure_filename(f"avatar_{g.user_id}_{file.filename}")
     file.save(os.path.join(upload_dir, filename))
     url = f"/static/uploads/avatars/{filename}"
+    
+    # מעדכנים לפרופיל את הכתובת של התמונה החדשה
     update_athlete_profile(g.user_id, {"avatar_url": url})
     return jsonify({"avatar_url": url}), 200
 
 
+# מביא נתונים כלליים למתאמן (כמה אימונים עשיתי החודש?)
 @athletes_bp.route("/stats", methods=["GET"])
 @require_auth
 def stats():
@@ -66,6 +76,7 @@ def stats():
     return jsonify(s), 200
 
 
+# ה"מוח" המרכזי של עמוד הבית! מביא בבת אחת את כל המידע כדי שהאפליקציה תעלה מהר.
 @athletes_bp.route("/dashboard", methods=["GET"])
 @require_auth
 def dashboard():
@@ -86,22 +97,22 @@ def dashboard():
         stats_data = {}
 
     try:
-        recent = get_workouts(g.user_id, limit=8)
+        recent = get_workouts(g.user_id, limit=8) # מביא 8 אימונים אחרונים
     except Exception:
         recent = []
 
     try:
-        volume = get_weekly_volume(g.user_id, weeks=8)
+        volume = get_weekly_volume(g.user_id, weeks=8) # כמה משקל סחבתי ב-8 השבועות האחרונים
     except Exception:
         volume = []
 
     try:
-        goals = get_goals(g.user_id, include_completed=True)
+        goals = get_goals(g.user_id, include_completed=True) # המטרות שלי
     except Exception:
         goals = []
 
     try:
-        latest_bw = get_latest_body_weight(g.user_id)
+        latest_bw = get_latest_body_weight(g.user_id) # השקילה האחרונה שלי
     except Exception:
         latest_bw = None
 
@@ -111,7 +122,7 @@ def dashboard():
     except Exception:
         today_tpl = None
 
-    # Unread notifications count
+    # סופרים כמה התראות חדשות יש למשתמש (פעמון שלא נקרא)
     try:
         db = get_db()
         unread = db.execute(
@@ -127,7 +138,7 @@ def dashboard():
     except Exception:
         athlete_obj = None
 
-    # Add exercise_count to recent workouts
+    # אוספים כמה תרגילים יש בכל אימון שחזר
     recent_list = []
     for w in recent:
         wd = dict(w)
@@ -142,6 +153,7 @@ def dashboard():
             wd["exercise_count"] = 0
         recent_list.append(wd)
 
+    # אורזים את הכל לחבילה ענקית וסופר מהירה ושולחים לדפדפן
     return jsonify({
         "profile":            athlete_obj.to_dict() if athlete_obj else None,
         "stats":              stats_data,
@@ -154,6 +166,7 @@ def dashboard():
     }), 200
 
 
+# מביא את כל השיאים האישיים (Personal Records) שהמתאמן הגיע אליהם
 @athletes_bp.route("/prs", methods=["GET"])
 @require_auth
 def get_prs():
@@ -170,6 +183,7 @@ def get_prs():
     return jsonify([dict(r) for r in rows]), 200
 
 
+# מחשב מחדש מיד את השיאים האישיים כדי שאם עשיתי שיא באימון האחרון זה יתעדכן!
 @athletes_bp.route("/prs/compute", methods=["POST"])
 @require_auth
 def compute_prs():
@@ -197,7 +211,7 @@ def compute_prs():
         ex_id = r["exercise_id"]
         w = r["weight_kg"]
         reps = r["reps"]
-        # Epley 1RM formula
+        # נוסחה שמחשבת כמה המשקל המקסימלי שהיית מצליח להרים לחזרה אחת (1RM)
         one_rm = w * (1 + reps / 30) if reps > 1 else w
 
         if ex_id not in best_per_exercise or one_rm > best_per_exercise[ex_id]["estimated_1rm"]:
@@ -211,6 +225,7 @@ def compute_prs():
             }
 
     updated = 0
+    # שומרים את כל השיאים ששברו את השיא הישן
     for ex_id, pr in best_per_exercise.items():
         db.execute(
             """INSERT INTO personal_records
@@ -230,3 +245,15 @@ def compute_prs():
 
     db.commit()
     return jsonify({"message": f"PRs computed.", "exercises_checked": updated}), 200
+
+"""
+English Summary:
+This file handles routes related to the athlete's personal profile, such as retrieving and 
+updating profile details, uploading avatars, fetching dashboard aggregate stats, and calculating 
+Personal Records (PRs) based on completed workout sets using the 1RM (One Rep Max) Epley formula.
+
+סיכום בעברית:
+קובץ זה מנהל את הפרופיל האישי של המתאמן ואת מסך הבית (הדשבורד). הוא מאפשר למתאמן להעלות 
+תמונת פרופיל ולעדכן נתונים אישיים. בנוסף, הוא מכיל לוגיקה חכמה שקוראת את כל האימונים הקודמים 
+ומחשבת באופן אוטומטי את "השיאים האישיים" (PRs) של המתאמן לכל תרגיל.
+"""

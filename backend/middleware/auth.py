@@ -1,5 +1,7 @@
 """
 Auth middleware — JWT token validation decorator.
+ה"שומר סף" של האתר! קובץ זה בודק כל בקשה שמגיעה לשרת 
+כדי לוודא שלמתאמן יש "תעודת כניסה" (Token) תקפה.
 """
 
 import os
@@ -51,3 +53,16 @@ def decode_token(token):
         return jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
     except:
         return None
+
+"""
+English Summary:
+This is a critical security middleware file. It provides the @require_auth decorator, which intercepts 
+incoming HTTP requests to verify the presence and validity of a JWT (JSON Web Token) inside the cookies 
+or headers. If the token is valid, it decodes it and attaches the user's ID and role to the Flask context, 
+granting access. Otherwise, it blocks the request.
+
+סיכום בעברית:
+הקובץ הזה משמש כ"שומר סף" קפדני בכניסה לאזורים הפרטיים באתר. לפני שמתאמן יכול לראות את
+פרופיל האימונים שלו או את הודעות הקהילה, הקובץ הזה בודק את "תעודת הזהות הדיגיטלית" שלו (JWT).
+אם התעודה תקינה, הוא מרשה לו להיכנס. אם לא (או שהתעודה פגה), הוא זורק אותו החוצה בחזרה למסך ההתחברות.
+"""

@@ -226,3 +226,15 @@ def migrate(db_path=DB_PATH):
 if __name__ == "__main__":
     migrate()
     print("[Migration] Done.")
+
+"""
+English Summary:
+This is the database migration utility. It safely applies incremental schema changes (like adding 
+new columns or tables) without destroying existing data. It dynamically checks for the presence 
+of columns via SQLite PRAGMA commands before executing ALTER TABLE statements.
+
+סיכום בעברית:
+זהו קובץ השדרוגים הרשמי של האתר! מטרתו היא לקחת מסד נתונים ישן ולשדרג אותו לגירסה 
+הכי חדשה (למשל, הוספת עמודות חדשות לטבלאות) מבלי למחוק או לפגוע במידע של המשתמשים שכבר 
+שמור בו. הוא עובר טבלה-טבלה, מזהה מה חסר, ומשלים בעצמו.
+"""

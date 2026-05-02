@@ -1,6 +1,7 @@
 /**
- * PeakForm — Workout Logger
- * Handles all workout logging logic including auto-save.
+ * PeakForm — Workout Logger (יומן האימונים שלנו)
+ * הקובץ הזה מנהל את מסך האימון עצמו. הוא שומר את האימון בזמן אמת, 
+ * מפעיל שעון עצר, מציג המלצות מהבינה המלאכותית ושומר את הכל בסוף.
  */
 
 let workoutId    = null;
@@ -44,6 +45,7 @@ onReady(async () => {
 
 // ── Start Options ─────────────────────────────────────────────
 
+// פונקציה שמציגה למשתמש אפשרויות לפני תחילת האימון (להתחיל חדש, לבחור תבנית או להמשיך אימון קודם)
 async function showStartOptions() {
   document.getElementById('start-options').style.display = 'block';
   document.getElementById('workout-logger').style.display = 'none';
@@ -72,6 +74,7 @@ async function showStartOptions() {
   }
 }
 
+// פונקציה להתחלת אימון חופשי (בלי תוכנית מוגדרת מראש)
 function startCustom() {
   document.getElementById('start-options').style.display = 'none';
   startWorkoutLogger('Custom Workout');
@@ -91,6 +94,7 @@ function checkResumeDraft() {
 
 // ── Workout Logger ────────────────────────────────────────────
 
+// פונקציה שמפעילה את מסך האימון הראשי (שעון, חיפוש תרגילים, שמירה אוטומטית)
 function startWorkoutLogger(name = '') {
   document.getElementById('start-options').style.display = 'none';
   document.getElementById('workout-logger').style.display = 'block';
@@ -102,6 +106,7 @@ function startWorkoutLogger(name = '') {
   loadExerciseList();
 }
 
+// פונקציה שמתחילה אימון מתוך "תבנית" (תוכנית מוכנה מראש עם תרגילים)
 async function startFromTemplate(templateId) {
   showLoading('Loading template...');
   const tpl = await apiFetch(`/api/templates/${templateId}`, {}, false);
@@ -148,6 +153,7 @@ async function startFromTemplate(templateId) {
   _loadIntelPanels(exercises);
 }
 
+// פונקציה שממשיכה אימון שהתחלנו בעבר ולא סיימנו
 async function resumeWorkout(workoutId_) {
   const data = await apiFetch(`/api/workouts/${workoutId_}`);
   if (data._error) { showStartOptions(); return; }
@@ -182,6 +188,7 @@ async function resumeWorkout(workoutId_) {
   loadExerciseList();
 }
 
+// פונקציה שמשחזרת אימון במקרה שהאתר נסגר בטעות או שהאינטרנט התנתק
 function restoreFromDraft() {
   const draft = loadDraft('active_workout');
   if (!draft) { showStartOptions(); return; }
@@ -285,6 +292,7 @@ async function _loadIntelPanels(exList) {
 
 // ── Timer ─────────────────────────────────────────────────────
 
+// מפעילה את שעון העצר של האימון (מחשבת כמה זמן עבר מההתחלה)
 function startTimer() {
   clearInterval(timerInterval);
   timerInterval = setInterval(() => {
@@ -307,6 +315,7 @@ function startTimer() {
 let _visibilityHandler = null;
 let _unloadHandler     = null;
 
+// שומרת אוטומטית את האימון כל כמה שניות למקרה שהסוללה תיגמר
 function startAutoSave() {
   clearInterval(autoSaveInterval);
   autoSaveInterval = setInterval(performAutoSave, 15000);
@@ -359,6 +368,7 @@ async function loadExerciseList() {
 
 let currentSearchCategory = '';
 
+// פונקציה שמחפשת תרגילים במערכת כשאתה מקליד בתיבת החיפוש
 async function searchExercises(query) {
   const dropdown = document.getElementById('exercise-dropdown');
   const q = query ? query.toLowerCase().trim() : '';
@@ -416,6 +426,7 @@ function filterCategory(cat) {
   });
 }
 
+// הוספת תרגיל חדש לרשימת האימון (מוסיף אוטומטית סט ראשון ריק)
 function addExercise(exId, exName, setType) {
   if (exercises.find(e => e.exercise_id === exId)) {
     showToast(`${exName} already in this workout`, 'warning');
@@ -437,6 +448,7 @@ function addExercise(exId, exName, setType) {
   performAutoSave();
 }
 
+// מוחקת תרגיל שלם מהאימון אם התחרטת
 function removeExercise(idx) {
   exercises.splice(idx, 1);
   renderExercises();
@@ -444,6 +456,7 @@ function removeExercise(idx) {
   performAutoSave();
 }
 
+// הוספת עוד סט (עוד סבב) לאותו תרגיל
 function addSet(exIdx) {
   const ex = exercises[exIdx];
   if (!ex) return;
@@ -678,6 +691,7 @@ if (!document.getElementById('spin-style')) {
 
 // ── Finish Workout ────────────────────────────────────────────
 
+// לחיצה על "סיום אימון"! הפונקציה שומרת הכל במסד הנתונים ומחשבת שיאים חדשים
 async function finishWorkout() {
   // Prevent double-submit
   if (isSaving) return;
@@ -781,6 +795,7 @@ function showDiscardConfirm() {
   openModal('discard-modal');
 }
 
+// זריקת האימון לפח (אם התחלת בטעות ואתה לא רוצה לשמור כלום)
 function discardWorkout() {
   clearDraft('active_workout');
   clearInterval(timerInterval);
@@ -921,3 +936,17 @@ async function requestAiSetSuggestion(exIdx) {
   }
 }
 
+/*
+English Summary:
+This file is the most complex frontend module, serving as the live Workout Logger. It handles 
+starting new workouts, resuming drafts, and loading from templates. It dynamically renders the 
+workout interface, tracks set completion (weight, reps, duration), provides an active workout timer, 
+continually auto-saves progress to localStorage, fetches per-exercise historical intelligence, 
+and interfaces with the AI to suggest personalized rep ranges for the next sets.
+
+סיכום בעברית:
+זהו הקובץ המרכזי והמורכב ביותר באתר! הוא אחראי על ניהול "יומן האימונים הזמני".
+הוא מאפשר פתיחת אימון חדש, הוספת תרגילים בזמן אמת, הפעלת טיימר מנוחה, ושמירה אוטומטית 
+כדי שאם הדפדפן ייסגר בטעות - הנתונים לא יאבדו. בנוסף, הקובץ מתקשר עם הבינה המלאכותית
+כדי להציע למתאמן כמה חזרות כדאי לו לעשות בסט הבא!
+*/

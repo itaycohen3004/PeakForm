@@ -23,3 +23,13 @@ with app.app_context():
         db.execute('UPDATE athlete_profiles SET onboarding_complete=1 WHERE user_id=1')
     db.commit()
     print('Done. Admin password reset to Admin@1234')
+
+"""
+English Summary:
+A fallback script to restore the primary administrator account in case of lockouts or forgotten 
+passwords. It regenerates the hash for a default password and unlocks the account.
+
+סיכום בעברית:
+תרופת הפלא למקרה שמנהל האתר שכח את הסיסמה או שהחשבון שלו ננעל בטעות. הקובץ מוחק 
+את הסיסמה הישנה, פותח את הנעילה (אם יש), ומאפס בחזרה לסיסמת ברירת המחדל כדי שיהיה אפשר להתחבר.
+"""
