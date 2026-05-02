@@ -357,22 +357,34 @@ async function loadExerciseList() {
   if (!data._error) allExercises = data;
 }
 
-function searchExercises(query) {
-  const dropdown = document.getElementById('exercise-dropdown');
-  const q = query ? query.toLowerCase() : '';
+let currentSearchCategory = '';
 
-  let matches = allExercises;
-  if (q) {
-    if (q.startsWith('cat:')) {
-      const cat = q.replace('cat:', '');
-      matches = allExercises.filter(e => e.category.toLowerCase() === cat);
-    } else {
-      matches = allExercises.filter(e =>
-        e.name.toLowerCase().includes(q) ||
-        e.category.toLowerCase().includes(q) ||
-        (e.muscles && e.muscles.toLowerCase().includes(q))
-      );
-    }
+async function searchExercises(query) {
+  const dropdown = document.getElementById('exercise-dropdown');
+  const q = query ? query.toLowerCase().trim() : '';
+
+  // 1. Local filter first for speed
+  let matches = allExercises.filter(e =>
+    e.name.toLowerCase().includes(q) ||
+    e.category.toLowerCase().includes(q)
+  );
+
+  // 2. If we have a query and local matches are few, fetch from server to find custom/newly approved exercises
+  if (q.length >= 2 && matches.length < 10) {
+    try {
+      const serverMatches = await apiFetch(`/api/exercises?q=${encodeURIComponent(q)}${currentSearchCategory ? '&category='+currentSearchCategory : ''}`, {}, false);
+      if (serverMatches && !serverMatches._error) {
+        // Merge and unique by ID
+        const existingIds = new Set(matches.map(m => m.id));
+        serverMatches.forEach(sm => {
+          if (!existingIds.has(sm.id)) matches.push(sm);
+        });
+      }
+    } catch(e) { console.warn("Server search failed", e); }
+  }
+
+  if (currentSearchCategory) {
+    matches = matches.filter(e => e.category.toLowerCase() === currentSearchCategory);
   }
 
   if (!matches.length) {
@@ -382,7 +394,10 @@ function searchExercises(query) {
       <div class="exercise-option" onclick="addExercise(${e.id}, ${JSON.stringify(e.name).replace(/"/g,'&quot;')}, '${e.set_type}')">
         <span class="ex-icon">${categoryIcon(e.category)}</span>
         <div class="ex-info">
-          <div class="ex-name">${escHtml(e.name)}</div>
+          <div class="ex-name">
+            ${escHtml(e.name)}
+            ${e.status === 'pending' ? '<span class="badge badge-amber" style="font-size:0.6rem;margin-left:4px">Pending</span>' : ''}
+          </div>
           <div class="ex-meta">${escHtml(e.category)} ${e.muscles ? '· ' + escHtml(e.muscles) : ''}</div>
         </div>
         <span class="btn btn-ghost btn-sm" style="margin-left:auto">+</span>
@@ -393,8 +408,8 @@ function searchExercises(query) {
 }
 
 function filterCategory(cat) {
-  document.getElementById('exercise-search').value = cat ? `cat:${cat}` : '';
-  searchExercises(cat ? `cat:${cat}` : '');
+  currentSearchCategory = cat;
+  searchExercises(document.getElementById('exercise-search').value);
   document.querySelectorAll('.cat-btn').forEach(b => {
     b.classList.remove('btn-primary');
     if (b.dataset.cat === cat) b.classList.add('btn-primary');

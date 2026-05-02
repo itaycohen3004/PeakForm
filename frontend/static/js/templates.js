@@ -97,23 +97,40 @@ async function editTemplate(id) {
   if (!data._error) openTemplateModal('edit', data);
 }
 
-function searchTplExercises(query) {
+async function searchTplExercises(query) {
   const dropdown = document.getElementById('tpl-exercise-dropdown');
-  const q = query.toLowerCase();
+  const q = query.toLowerCase().trim();
   if (!q) { dropdown.style.display = 'none'; return; }
   
-  const matches = _allExercises.filter(e => 
+  // 1. Local filter
+  let matches = _allExercises.filter(e => 
     e.name.toLowerCase().includes(q) || 
     e.category.toLowerCase().includes(q)
-  ).slice(0, 20);
+  );
+
+  // 2. Fetch from server if needed
+  if (q.length >= 2 && matches.length < 5) {
+    try {
+      const serverMatches = await apiFetch(`/api/exercises?q=${encodeURIComponent(q)}`, {}, false);
+      if (serverMatches && !serverMatches._error) {
+        const existingIds = new Set(matches.map(m => m.id));
+        serverMatches.forEach(sm => {
+          if (!existingIds.has(sm.id)) matches.push(sm);
+        });
+      }
+    } catch(e) {}
+  }
   
   if (!matches.length) {
     dropdown.innerHTML = '<div style="padding:10px;color:var(--text-muted)">No exercises found</div>';
   } else {
-    dropdown.innerHTML = matches.map(e => `
+    dropdown.innerHTML = matches.slice(0, 20).map(e => `
       <div class="exercise-option" onclick="addTplExercise(${e.id}, '${escHtml(e.name).replace(/'/g, "\\'")}')">
         <div>
-          <div class="exercise-option-name">${escHtml(e.name)}</div>
+          <div class="exercise-option-name">
+            ${escHtml(e.name)}
+            ${e.status === 'pending' ? '<span class="badge badge-amber" style="font-size:0.6rem;margin-left:4px">Pending</span>' : ''}
+          </div>
           <div class="exercise-option-meta">${escHtml(e.category)}</div>
         </div>
         <span style="color:var(--violet)">+ Add</span>

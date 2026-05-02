@@ -39,8 +39,12 @@ def create():
             ex_name = ex_data.get("name")
             if not ex_name: continue
             
-            # Find the exercise ID by name
-            ex_row = db.execute("SELECT id FROM exercises WHERE name = ? COLLATE NOCASE", (ex_name,)).fetchone()
+            # Find the exercise ID by name - MUST be approved OR created by this user
+            ex_row = db.execute("""
+                SELECT id FROM exercises 
+                WHERE name = ? COLLATE NOCASE 
+                AND (status = 'approved' OR (status IS NULL AND is_custom = 0) OR created_by = ?)
+            """, (ex_name, g.user_id)).fetchone()
             if ex_row:
                 ex_id = ex_row["id"]
                 add_exercise_to_template(

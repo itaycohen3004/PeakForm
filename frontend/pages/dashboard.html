@@ -83,7 +83,9 @@
           <h3 class="card-title">📊 Weekly Volume</h3>
           <a href="/progress.html" class="btn btn-ghost btn-sm">Analytics →</a>
         </div>
-        <canvas id="volume-chart" height="160"></canvas>
+        <div style="height:200px;position:relative">
+          <canvas id="volume-chart"></canvas>
+        </div>
         <div id="no-volume" class="empty-state" style="display:none;padding:var(--space-xl)">
           <div class="empty-icon">📊</div>
           <p>Log workouts to see your volume chart</p>
@@ -195,8 +197,10 @@
       // Notification badge
       if (data.unread_notifications > 0) {
         const badge = document.getElementById('notif-badge');
-        badge.textContent = data.unread_notifications;
-        badge.style.display = 'block';
+        if (badge) {
+          badge.textContent = data.unread_notifications;
+          badge.style.display = 'block';
+        }
       }
 
       // Today's scheduled template

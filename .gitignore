@@ -3,7 +3,6 @@ __pycache__/
 *.pyc
 *.pyo
 *.pyd
-.db
 instance/
 .pytest_cache/
 .coverage
@@ -18,4 +17,3 @@ node_modules/
 .DS_Store
 uploads/*
 !uploads/.gitkeep
-database/peakform.db

@@ -30,17 +30,21 @@ class Athlete:
 
         # Convert decrypted strings back to numbers if needed
         try:
-            if self.age: self.age = int(self.age)
+            if self.age: self.age = int(float(self.age))
             if self.height_cm: self.height_cm = float(self.height_cm)
             if self.current_weight: self.current_weight = float(self.current_weight)
             if self.target_weight: self.target_weight = float(self.target_weight)
-        except: pass
+        except Exception: 
+            pass
 
     @property
     def bmi(self) -> float | None:
-        if self.height_cm and self.current_weight:
-            h_m = self.height_cm / 100
-            return round(self.current_weight / (h_m * h_m), 1)
+        try:
+            if self.height_cm and self.current_weight:
+                h_m = float(self.height_cm) / 100
+                return round(float(self.current_weight) / (h_m * h_m), 1)
+        except (ValueError, TypeError):
+            pass
         return None
 
     @property

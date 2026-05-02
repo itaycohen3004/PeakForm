@@ -498,8 +498,23 @@ h1,h2,h3,h4,h5,h6 {
   }
 
   /* Limit chart height */
-  #volume-chart, #chart-weight, canvas {
-    max-height: 250px !important;
+  #volume-chart, #chart-weight {
+    max-height: 220px !important;
+  }
+
+  /* Prevent page-header from causing horizontal overflow on small screens */
+  .page-header.flex-between {
+    flex-direction: column;
+    align-items: stretch;
+    text-align: center;
+    gap: var(--space-md);
+  }
+  .page-header > div:last-child {
+    justify-content: center;
+    width: 100%;
+  }
+  .page-header > div:last-child .btn {
+    flex: 1;
   }
 
   /* Dashboard stats horizontal scrolling */
@@ -582,17 +597,17 @@ h1,h2,h3,h4,h5,h6 {
   justify-content: center;
   gap: 4px;
   color: var(--text-muted);
-  font-size: 0.65rem;
+  font-size: 0.75rem;
   font-weight: 600;
   text-decoration: none;
-  padding: var(--space-xs) var(--space-sm);
+  padding: 8px 12px;
   border-radius: var(--radius-md);
   flex: 1;
 }
 
 .bottom-nav-item .nav-icon {
-  font-size: 1.2rem;
-  margin-bottom: 2px;
+  font-size: 1.6rem;
+  margin-bottom: 4px;
 }
 
 .bottom-nav-item.active {

@@ -42,13 +42,9 @@ class AICoach:
     """
 
     def __init__(self, api_key: str = None, model_name: str = None):
-        self.api_key    = api_key or GEMINI_API_KEY
-        self.secondary_key = GEMINI_SECONDARY_API_KEY
+        self.api_key    = api_key or os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
+        self.secondary_key = os.getenv("GEMINI_SECONDARY_API_KEY")
         
-        # Fallback hardcoded key for internal testing
-        if not self.api_key:
-            self.api_key = "AIzaSyDs3skt6o2xx6lK2-adjUCESaNSDZtJtLQ"
-            
         self.active_key = self.api_key
         self.model_name = model_name or GEMINI_MODEL
         self._client    = None

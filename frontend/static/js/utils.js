@@ -261,16 +261,13 @@ async function renderSidebar() {
         <span class="nav-icon">📊</span><span>Home</span>
       </a>
       <a href="/log-workout.html" class="bottom-nav-item" data-page="log-workout">
-        <span class="nav-icon">💪</span><span>Workout</span>
+        <span class="nav-icon">💪</span><span>Workouts</span>
+      </a>
+      <a href="/exercise-library.html" class="bottom-nav-item" data-page="exercise-library">
+        <span class="nav-icon">🔍</span><span>Library</span>
       </a>
       <a href="/ai-coach.html" class="bottom-nav-item" data-page="ai-coach">
         <span class="nav-icon">🤖</span><span>AI Coach</span>
-      </a>
-      <a href="/community-chat.html" class="bottom-nav-item" data-page="community-chat">
-        <span class="nav-icon">💬</span><span>Groups</span>
-      </a>
-      <a href="/profile.html" class="bottom-nav-item" data-page="profile">
-        <span class="nav-icon">👤</span><span>Profile</span>
       </a>
       <div class="bottom-nav-item" id="mobile-hamburger" style="cursor:pointer">
         <span class="nav-icon">☰</span><span>More</span>
@@ -294,12 +291,13 @@ async function renderSidebar() {
           <button class="modal-close" onclick="closeModal('mobile-menu-modal')">✕</button>
         </div>
         <div class="more-menu-grid mb-md">
+          <a href="/community-chat.html" class="more-menu-item"><span class="nav-icon">💬</span> Chat</a>
           <a href="/community.html" class="more-menu-item"><span class="nav-icon">🌐</span> Feed</a>
-          <a href="/exercise-library.html" class="more-menu-item"><span class="nav-icon">🔍</span> Library</a>
           <a href="/workout-history.html" class="more-menu-item"><span class="nav-icon">📅</span> History</a>
           <a href="/achievements.html" class="more-menu-item"><span class="nav-icon">🏆</span> Goals</a>
           <a href="/body-weight.html" class="more-menu-item"><span class="nav-icon">⚖️</span> Weight</a>
           <a href="/templates.html" class="more-menu-item"><span class="nav-icon">📋</span> Templates</a>
+          <a href="/profile.html" class="more-menu-item"><span class="nav-icon">👤</span> Profile</a>
           ${user.role === 'admin' ? '<a href="/admin.html" class="more-menu-item" style="color:var(--amber)"><span class="nav-icon">🛡️</span> Admin</a>' : ''}
           <a href="#" class="more-menu-item" onclick="logout()" style="color:var(--red)"><span class="nav-icon">🚪</span> Sign Out</a>
         </div>
