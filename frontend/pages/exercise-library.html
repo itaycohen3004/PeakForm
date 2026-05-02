@@ -229,16 +229,22 @@
         const user = getUser();
         const isAdmin = user && user.role === 'admin';
 
-        grid.innerHTML = data.map(ex => `
+        grid.innerHTML = data.map(ex => {
+          // Determine status badge for this exercise card
+          let statusBadge = '';
+          if (ex.status === 'pending') {
+            statusBadge = '<span class="badge badge-amber" style="font-size:0.6rem;padding:2px 4px">⏳ Pending approval</span>';
+          } else if (ex.status === 'rejected') {
+            statusBadge = '<span class="badge" style="font-size:0.6rem;padding:2px 6px;background:rgba(239,68,68,0.15);color:#f87171;border:1px solid rgba(239,68,68,0.3)">🔒 Rejected — private exercise only</span>';
+          }
+          return `
           <div class="card card-sm" id="ex-card-${ex.id}">
             <div class="flex-between mb-sm">
               <span style="font-size:1.3rem">${categoryIcon(ex.category)}</span>
               ${setTypeBadge(ex.set_type)}
             </div>
-            <div style="font-weight:700;font-size:.95rem;margin-bottom:4px">
-              ${ex.name} 
-              ${ex.status === 'pending' ? '<span class="badge badge-amber" style="font-size:0.6rem;padding:2px 4px">Pending</span>' : ''}
-            </div>
+            <div style="font-weight:700;font-size:.95rem;margin-bottom:4px">${escHtml(ex.name)}</div>
+            ${statusBadge ? `<div style="margin-bottom:6px">${statusBadge}</div>` : ''}
             <div style="font-size:.75rem;color:var(--text-muted)">${ex.category.replace('_',' ')} · ${ex.muscles_tags || ex.muscles || ''}</div>
             ${ex.equipment ? `<div style="font-size:.7rem;color:var(--text-xmuted);margin-top:4px">🛠 ${ex.equipment}</div>` : ''}
             
@@ -248,8 +254,8 @@
               <button class="btn btn-ghost btn-sm" style="color:var(--red)" onclick="deleteExercise(${ex.id}, '${escHtml(ex.name)}')">🗑 Delete</button>
             </div>
             ` : ''}
-          </div>
-        `).join('');
+          </div>`;
+        }).join('');
       }, 200);
     }
 

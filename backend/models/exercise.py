@@ -15,12 +15,17 @@ def _send_admin_dm(user_id: int, message: str):
 
 def search_exercises(query: str = "", category: str = "", limit: int = 50, user_id: int = None):
     db = get_db()
-    # Globally-visible: approved (or legacy exercises with NULL status)
-    # Personal-only: user's own pending submissions
+    # Globally-visible: approved exercises (or legacy NULL-status built-in exercises)
+    # Personal-only: the submitting user's own pending OR rejected exercises
+    # Other users' rejected exercises are NEVER returned.
     sql = "SELECT * FROM exercises WHERE (status = 'approved' OR (status IS NULL AND is_custom = 0)"
     params = []
     if user_id:
+        # Include this user's pending submissions
         sql += " OR (status = 'pending' AND created_by = ?)"
+        params.append(user_id)
+        # Include this user's rejected submissions (private — visible only to creator)
+        sql += " OR (status = 'rejected' AND created_by = ?)"
         params.append(user_id)
     sql += ")"
     if query:
@@ -98,7 +103,9 @@ def reject_exercise(exercise_id: int):
         # Also send automatic private DM
         _send_admin_dm(
             ex["created_by"],
-            f"\u274c Your exercise **{ex['name']}** was **not approved** at this time. Please ensure it has a unique name, correct muscle tags, and accurate equipment details, then resubmit."
+            f"\u274c Your exercise **{ex['name']}** was **not approved** at this time. "
+            f"It remains available as a **private exercise** for you only. "
+            f"You can still use it in your workouts and templates — it just won't appear in the public library."
         )
 
 

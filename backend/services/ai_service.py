@@ -5,7 +5,7 @@ OOP class: AICoach — satisfies academic OOP requirement.
 SETUP:
   1. Get API key from: https://aistudio.google.com/
   2. Add to .env: GEMINI_API_KEY=your_key_here
-  3. The app uses gemini-1.5-flash (free tier available)
+  3. The app tries several Gemini models in order until one works.
 """
 import os
 import json
@@ -17,19 +17,21 @@ load_dotenv('.env', override=True)
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 GEMINI_SECONDARY_API_KEY = os.getenv("GEMINI_SECONDARY_API_KEY", "")
-GEMINI_MODEL   = os.getenv("GEMINI_MODEL", "gemini-1.5-flash")
+GEMINI_MODEL   = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
 
 print(f"[AICoach] API key loaded: {'YES ('+GEMINI_API_KEY[:8]+'...)' if GEMINI_API_KEY else 'NO — set GEMINI_API_KEY in .env'}")
 print(f"[AICoach] Secondary API key loaded: {'YES' if GEMINI_SECONDARY_API_KEY else 'NO'}")
 print(f"[AICoach] Preferred model: {GEMINI_MODEL}")
 
-# Models to try in order — gemini-1.5-flash is the most reliable free-tier model
+# Models to try in order — newest / most reliable first.
+# gemini-2.0-flash is the recommended free-tier model as of 2025.
 _FALLBACK_MODELS = [
-    "gemini-2.5-flash-lite",
+    "gemini-2.0-flash",
     "gemini-2.0-flash-lite",
-    "gemini-2.5-flash",
+    "gemini-1.5-flash-latest",
+    "gemini-1.5-pro-latest",
+    "gemini-1.5-flash",
     "gemini-1.5-pro",
-    "gemini-1.5-flash"
 ]
 
 import google.generativeai as genai
@@ -44,24 +46,35 @@ class AICoach:
 
     def __init__(self, api_key: str = None, model_name: str = None):
         self.api_key    = api_key or os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
+        # Collect all backup keys: GEMINI_SECONDARY_API_KEY, GEMINI_API_KEY_2, GEMINI_API_KEY_3, etc.
         self.secondary_key = os.getenv("GEMINI_SECONDARY_API_KEY")
-        
+        extra_keys = []
+        for suffix in ("_2", "_3", "_4"):
+            k = os.getenv(f"GEMINI_API_KEY{suffix}")
+            if k and k != self.api_key and k != self.secondary_key:
+                extra_keys.append(k)
+        # Build ordered list of keys to try: primary → secondary → extras
+        self._all_keys = [k for k in [self.api_key, self.secondary_key] + extra_keys if k]
+        self._key_index = 0
+
         self.active_key = self.api_key
         self.model_name = model_name or GEMINI_MODEL
         self._client    = None
         self._configured = False
         self._last_error = ""
-        
-        # Fallback tracking
-        self.available_models = ["gemini-2.0-flash"] + [m for m in _FALLBACK_MODELS if m != "gemini-2.0-flash"]
+
+        # Fallback tracking: start with the preferred model, then try the rest of the list
+        preferred = model_name or GEMINI_MODEL
+        fallback_rest = [m for m in _FALLBACK_MODELS if m != preferred]
+        self.available_models = [preferred] + fallback_rest
         self.current_model_index = 0
 
-        # As requested: check if GOOGLE_API_KEY or GEMINI_API_KEY is actually being loaded
-        key_to_log = os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY")
+        # Log key presence without revealing the full key
+        key_to_log = self.api_key
         if key_to_log:
-            print(f"Using API Key: {key_to_log[:10]}...")
+            print(f"[AICoach] Using API Key: {key_to_log[:10]}... ({len(self._all_keys)} key(s) total)")
         else:
-            print("Using API Key: None found in env! Using fallback.")
+            print("[AICoach] Using API Key: None found in env! Set GEMINI_API_KEY in .env")
 
     def _initialize(self):
         """Lazy initialization — prepare the first available model."""
@@ -87,8 +100,8 @@ class AICoach:
             self._last_error = str(e)
 
     def _failover(self) -> bool:
-        """Switch to next model or secondary API key. Returns True if failover successful."""
-        # Try next model first
+        """Switch to next model or next API key. Returns True if failover successful."""
+        # Try next model on the current key first
         self.current_model_index += 1
         if self.current_model_index < len(self.available_models):
             next_model = self.available_models[self.current_model_index]
@@ -96,58 +109,65 @@ class AICoach:
             self.model_name = next_model
             self._client = genai.GenerativeModel(self.model_name)
             return True
-            
-        # If all models exhausted for this key, try secondary key
-        if self.active_key == self.api_key and self.secondary_key:
-            print("[AICoach] 🔄 Primary API key models exhausted. Switching to secondary API key.")
-            self.active_key = self.secondary_key
+
+        # All models exhausted for this key — try next API key
+        self._key_index += 1
+        if self._key_index < len(self._all_keys):
+            next_key = self._all_keys[self._key_index]
+            print(f"[AICoach] 🔄 Switching to backup API key #{self._key_index} (first 8 chars: {next_key[:8]}...)")
+            self.active_key = next_key
             genai.configure(api_key=self.active_key)
+            # Reset model index and try from the beginning of the model list
             self.current_model_index = 0
-            self.model_name = self.available_models[self.current_model_index]
+            self.model_name = self.available_models[0]
             self._client = genai.GenerativeModel(self.model_name)
             return True
-            
+
         return False
 
     def _generate_with_fallback(self, prompt: str):
-        """Wrapper to handle quotas and server errors by falling back to other models or keys."""
+        """Wrapper to handle quotas, 404 model-not-found, and server errors by falling back."""
         if not self.is_ready:
             raise Exception(f"AI not configured: {self._last_error}")
-            
-        # Try all models for both keys (if secondary exists)
-        max_attempts = len(self.available_models) * (2 if self.secondary_key else 1)
+
+        # Total attempts = models × keys
+        max_attempts = len(self.available_models) * max(len(self._all_keys), 1)
         attempts = 0
-        
+
         while attempts < max_attempts:
             try:
-                # Always ensure client is pointing to the current model_name
-                # Note: self._client.model_name usually starts with 'models/'
                 response = self._client.generate_content(prompt)
                 return response
             except Exception as e:
                 err_str = str(e).lower()
                 attempts += 1
-                
-                # Broaden failover: Quotas, Server Errors (500, 503), or Overloaded
+
+                # Conditions that warrant trying the next model/key:
+                # 429 quota, 500/502/503/504 server errors, 404 model not found,
+                # overloaded, generateContent not supported
                 should_failover = any(x in err_str for x in [
-                    "429", "quota", "exhausted", "500", "502", "503", "504",
-                    "overloaded", "deadline", "unavailable", "service"
+                    "429", "quota", "exhausted",
+                    "500", "502", "503", "504",
+                    "overloaded", "deadline", "unavailable", "service",
+                    "404", "not found", "not supported", "generatecontent",
+                    "model is not", "is not supported",
                 ])
-                
+
+                current_model_display = self.model_name
                 if should_failover:
-                    print(f"[AICoach] ⚠️ Error on {self.model_name} (Attempt {attempts}): {e}. Trying failover...")
+                    print(f"[AICoach] ⚠️  Model '{current_model_display}' failed (attempt {attempts}): {str(e)[:120]}. Trying next...")
                     if self._failover():
                         continue
                     else:
-                        raise Exception("All fallback models and API keys have been exhausted or returned errors.")
+                        raise Exception("All fallback models and API keys have been exhausted.")
                 elif "403" in err_str:
-                    # 403 is often regional. Let's try switching keys anyway if possible.
-                    print(f"[AICoach] 🚨 403 Permission Error. Trying key switch...")
+                    print(f"[AICoach] 🚨 403 Permission Error on model '{current_model_display}'. Trying key switch...")
                     if self._failover():
                         continue
-                    raise Exception(f"Permission error (Key: {self.active_key[:5]}...): {e}")
+                    raise Exception("Permission denied (403) for all configured API keys.")
                 else:
-                    # For unknown errors, try next model just in case
+                    # Unknown error — attempt one more failover just in case
+                    print(f"[AICoach] ❓ Unknown error on model '{current_model_display}': {str(e)[:120]}. Trying next...")
                     if self._failover():
                         continue
                     raise
@@ -162,7 +182,7 @@ class AICoach:
         """Multi-turn coaching conversation."""
         print(f"[AICoach] chat() called. is_ready={self._client is not None}")
         if not self.is_ready:
-            msg = f"AI coaching failed to start. Internal Error: {self._last_error}"
+            msg = "The AI Coach is not available right now. Please check that GEMINI_API_KEY is set in your .env file."
             print(f"[AICoach] Not ready — returning fallback message")
             return msg
 
@@ -174,20 +194,25 @@ class AICoach:
 
         prompt = "\n".join(msgs)
         try:
-            print(f"[AICoach] Sending prompt ({len(prompt)} chars)")
+            print(f"[AICoach] Sending prompt ({len(prompt)} chars) via model '{self.model_name}'")
             response = self._generate_with_fallback(prompt)
             reply = response.text.strip()
-            print(f"[AICoach] Got reply ({len(reply)} chars)")
+            print(f"[AICoach] Got reply ({len(reply)} chars) from model '{self.model_name}'")
             return reply
         except Exception as e:
             err_str = str(e)
+            # Log the technical detail on the server — never send raw tracebacks to the user
             print(f"[AICoach] Chat error: {err_str}")
             print(traceback.format_exc())
             if "quota" in err_str.lower() or "exhausted" in err_str.lower():
-                return f"I'm temporarily unavailable due to API quota limits across all backup models. Please try again later."
-            elif "403" in err_str or "400" in err_str:
-                return f"Region/Proxy Restriction Error (403/400): {err_str}"
-            return f"I encountered an API issue. Error details: {err_str}"
+                return "The AI Coach is temporarily unavailable due to API quota limits. Please try again in a few minutes."
+            elif "all fallback" in err_str.lower() or "maximum fallback" in err_str.lower():
+                return "The AI Coach could not connect to any available model. Please try again later."
+            elif "no api key" in err_str.lower() or "not configured" in err_str.lower():
+                return "The AI Coach is not configured. Please contact the administrator."
+            elif "403" in err_str or "permission" in err_str.lower():
+                return "The AI Coach encountered a permission error. Please contact the administrator."
+            return "The AI Coach is temporarily unavailable. Please try again in a moment."
 
     def analyze_exercise(self, context: str, exercise_name: str) -> dict:
         """Return structured progression recommendations."""

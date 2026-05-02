@@ -23,11 +23,12 @@ EMAIL_REGEX = re.compile(r"^[^\@\s]+@[^\@\s]+\.[^\@\s]+$")
 
 @auth_bp.route("/register", methods=["POST"])
 def register():
-    data         = request.get_json(silent=True) or {}
-    email        = (data.get("email") or "").strip().lower()
-    password     = data.get("password") or ""
-    display_name = (data.get("display_name") or "").strip()
-    training_type = data.get("training_type", "gym")
+    data             = request.get_json(silent=True) or {}
+    email            = (data.get("email") or "").strip().lower()
+    password         = data.get("password") or ""
+    confirm_password = data.get("confirm_password") or ""
+    display_name     = (data.get("display_name") or "").strip()
+    training_type    = data.get("training_type", "gym")
 
     errors = {}
     if not email or not EMAIL_REGEX.match(email):
@@ -37,11 +38,14 @@ def register():
     pw_errors = validate_password_strength(password)
     if pw_errors:
         errors["password"] = pw_errors
+    # Server-side: passwords must match (client validates first, but we double-check)
+    if confirm_password and password != confirm_password:
+        errors["confirm_password"] = "Passwords do not match."
     if errors:
         return jsonify({"errors": errors}), 400
 
     if find_user_by_email(email):
-        return jsonify({"errors": {"email": "An account with this email already exists."}}), 409
+        return jsonify({"errors": {"email": "This email already exists."}}), 409
 
     user_id = create_user(email, hash_password(password), "athlete")
     create_athlete_profile(

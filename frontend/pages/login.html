@@ -18,6 +18,13 @@
     <div class="auth-title">Welcome back</div>
     <div class="auth-subtitle">Sign in to continue your training</div>
 
+    <!-- Inline error message area — shown when login fails -->
+    <div id="login-error" role="alert"
+         style="display:none;background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.35);
+                border-radius:var(--radius-md);padding:10px 14px;margin-bottom:var(--space-md);
+                font-size:.88rem;color:#f87171;line-height:1.4">
+    </div>
+
     <form id="login-form" onsubmit="handleLogin(event)" novalidate>
       <div class="form-group mb-md">
         <label class="form-label" for="email">Email</label>
@@ -27,7 +34,10 @@
         <label class="form-label" for="password">Password</label>
         <div style="position:relative">
           <input type="password" id="password" class="form-control" placeholder="••••••••" autocomplete="current-password">
-          <button type="button" onclick="togglePW()" style="position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:var(--text-muted);font-size:.9rem" aria-label="Toggle password">👁</button>
+          <button type="button" id="toggle-pw-btn" onclick="togglePW()"
+                  style="position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;
+                         cursor:pointer;color:var(--text-muted);font-size:.9rem;line-height:1"
+                  aria-label="Toggle password visibility" title="Show / hide password">👁</button>
         </div>
       </div>
       <button type="submit" class="btn btn-primary btn-full btn-lg" id="login-btn">Sign In</button>
@@ -58,22 +68,76 @@
     }
     if (isLoggedIn()) window.location.href = '/dashboard.html';
 
+    // ── Password visibility toggle ─────────────────────────────
     function togglePW() {
-      const i = document.getElementById('password');
-      i.type = i.type === 'password' ? 'text' : 'password';
+      const input = document.getElementById('password');
+      const btn   = document.getElementById('toggle-pw-btn');
+      if (input.type === 'password') {
+        input.type   = 'text';
+        btn.textContent = '🙈';
+        btn.title    = 'Hide password';
+      } else {
+        input.type   = 'password';
+        btn.textContent = '👁';
+        btn.title    = 'Show password';
+      }
     }
+
+    // ── Inline error helpers ───────────────────────────────────
+    function showLoginError(msg) {
+      const el = document.getElementById('login-error');
+      el.textContent = msg;
+      el.style.display = 'block';
+    }
+
+    function clearLoginError() {
+      const el = document.getElementById('login-error');
+      el.style.display = 'none';
+      el.textContent   = '';
+    }
+
+    // ── Login handler ──────────────────────────────────────────
+
+    // Hide error box as soon as the user starts correcting their input
+    document.getElementById('email').addEventListener('input', clearLoginError);
+    document.getElementById('password').addEventListener('input', clearLoginError);
 
     async function handleLogin(e) {
       e.preventDefault();
+      clearLoginError();
+
       const btn = document.getElementById('login-btn');
-      btn.textContent = 'Signing in...'; btn.disabled = true;
+      btn.textContent = 'Signing in…'; btn.disabled = true;
+
       const payload = {
         email:    document.getElementById('email').value.trim(),
         password: document.getElementById('password').value,
       };
-      const res = await apiFetch('/api/auth/login', { method:'POST', body: payload });
+
+      // skipAuthRedirect: stops apiFetch from bouncing to /login.html on 401
+      // silent: we show our own inline error, no duplicate toast
+      const res = await apiFetch('/api/auth/login', {
+        method: 'POST',
+        body: payload,
+        skipAuthRedirect: true,
+        silent: true,
+      });
       btn.textContent = 'Sign In'; btn.disabled = false;
-      if (res._error) return;
+
+      if (res._error) {
+        if (res.status === 0) {
+          showLoginError('⚠️ Server connection error. Please check that the server is running and try again.');
+        } else if (res.status === 401) {
+          showLoginError('❌ Email or password is incorrect. Please try again.');
+        } else if (res.status === 403) {
+          showLoginError('🔒 Your account has been locked. Please contact support.');
+        } else if (res.status === 404) {
+          showLoginError('❌ No account found with this email. Please register first.');
+        } else {
+          showLoginError(res.message || 'Login failed. Please try again.');
+        }
+        return;
+      }
 
       saveAuth(res.token, {
         user_id:             res.user_id,
@@ -93,3 +157,4 @@
   </script>
 </body>
 </html>
+

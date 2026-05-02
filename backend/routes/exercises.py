@@ -113,6 +113,21 @@ def create_custom():
     if not name:
         return jsonify({"error": "Exercise name required"}), 400
 
+    from backend.models.db import get_db
+    db = get_db()
+    
+    # Check for duplicate exercises to keep history stable
+    # It shouldn't let them recreate a global exercise, or one they already created (pending/rejected/approved)
+    existing = db.execute(
+        """SELECT id FROM exercises 
+           WHERE name COLLATE NOCASE = ? 
+           AND (created_by = ? OR status = 'approved' OR (status IS NULL AND is_custom = 0))""",
+        (name, g.user_id)
+    ).fetchone()
+    
+    if existing:
+        return jsonify({"error": f"An exercise named '{name}' already exists. Please search for it in your library instead."}), 409
+
     valid_types = ["reps_weight","reps_only","time_only","time_weight"]
     if set_type not in valid_types:
         return jsonify({"error": f"set_type must be one of {valid_types}"}), 400

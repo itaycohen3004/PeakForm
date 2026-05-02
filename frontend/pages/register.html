@@ -18,6 +18,13 @@
     <div class="auth-title">Start your journey</div>
     <div class="auth-subtitle">Join PeakForm and track your strength training</div>
 
+    <!-- Inline error area -->
+    <div id="reg-error" role="alert"
+         style="display:none;background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.35);
+                border-radius:var(--radius-md);padding:10px 14px;margin-bottom:var(--space-md);
+                font-size:.88rem;color:#f87171;line-height:1.4">
+    </div>
+
     <form id="register-form" onsubmit="handleRegister(event)" novalidate>
       <div class="form-group mb-md">
         <label class="form-label" for="display_name">Name / Handle</label>
@@ -30,8 +37,23 @@
       <div class="form-group mb-md">
         <label class="form-label" for="password">Password</label>
         <div style="position:relative">
-          <input type="password" id="password" class="form-control" placeholder="Min 8 chars, mixed case + number" autocomplete="new-password">
-          <button type="button" onclick="togglePW()" style="position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:var(--text-muted)" aria-label="Toggle password">👁</button>
+          <input type="password" id="password" class="form-control"
+                 placeholder="Min 8 chars, mixed case + number" autocomplete="new-password">
+          <button type="button" id="toggle-pw-btn" onclick="togglePW('password','toggle-pw-btn')"
+                  style="position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;
+                         cursor:pointer;color:var(--text-muted);font-size:.9rem;line-height:1"
+                  aria-label="Toggle password visibility" title="Show / hide password">👁</button>
+        </div>
+      </div>
+      <div class="form-group mb-md">
+        <label class="form-label" for="confirm_password">Confirm Password</label>
+        <div style="position:relative">
+          <input type="password" id="confirm_password" class="form-control"
+                 placeholder="Re-enter your password" autocomplete="new-password">
+          <button type="button" id="toggle-cpw-btn" onclick="togglePW('confirm_password','toggle-cpw-btn')"
+                  style="position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;
+                         cursor:pointer;color:var(--text-muted);font-size:.9rem;line-height:1"
+                  aria-label="Toggle confirm password visibility" title="Show / hide password">👁</button>
         </div>
       </div>
       <div class="form-group mb-lg">
@@ -69,31 +91,95 @@
   <script>
     if (isLoggedIn()) window.location.href = '/dashboard.html';
 
-    function togglePW() {
-      const i = document.getElementById('password');
-      i.type = i.type === 'password' ? 'text' : 'password';
+    // ── Password visibility toggle (shared for both fields) ────
+    function togglePW(inputId, btnId) {
+      const input = document.getElementById(inputId);
+      const btn   = document.getElementById(btnId);
+      if (input.type === 'password') {
+        input.type      = 'text';
+        btn.textContent = '🙈';
+        btn.title       = 'Hide password';
+      } else {
+        input.type      = 'password';
+        btn.textContent = '👁';
+        btn.title       = 'Show password';
+      }
     }
+
+    // ── Inline error helpers ───────────────────────────────────
+    function showRegError(msg) {
+      const el = document.getElementById('reg-error');
+      el.textContent  = msg;
+      el.style.display = 'block';
+    }
+
+    function clearRegError() {
+      const el = document.getElementById('reg-error');
+      el.style.display = 'none';
+      el.textContent   = '';
+    }
+
+    // ── Register handler ───────────────────────────────────────
+
+    // Hide error box as soon as the user starts correcting any field
+    ['display_name', 'email', 'password', 'confirm_password'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.addEventListener('input', clearRegError);
+    });
 
     async function handleRegister(e) {
       e.preventDefault();
-      const btn = document.getElementById('register-btn');
+      clearRegError();
+
+      const btn  = document.getElementById('register-btn');
       const form = document.getElementById('register-form');
       clearFieldErrors(form);
 
-      btn.textContent = 'Creating account...'; btn.disabled = true;
+      const password        = document.getElementById('password').value;
+      const confirmPassword = document.getElementById('confirm_password').value;
+
+      // Client-side: passwords must match before even sending to server
+      if (password !== confirmPassword) {
+        showRegError('❌ Passwords do not match. Please try again.');
+        return;
+      }
+
+      btn.textContent = 'Creating account…'; btn.disabled = true;
 
       const payload = {
         display_name:  document.getElementById('display_name').value.trim(),
         email:         document.getElementById('email').value.trim(),
-        password:      document.getElementById('password').value,
+        password,
+        confirm_password: confirmPassword,
         training_type: document.querySelector('input[name="training_type"]:checked')?.value || 'gym',
       };
 
-      const res = await apiFetch('/api/auth/register', { method:'POST', body: payload });
+      const res = await apiFetch('/api/auth/register', {
+        method: 'POST',
+        body: payload,
+        skipAuthRedirect: true,
+        silent: true,
+      });
       btn.textContent = 'Create Account'; btn.disabled = false;
 
       if (res._error) {
-        if (res.errors) showFieldErrors(res.errors);
+        if (res.status === 0) {
+          showRegError('⚠️ Server connection error. Please check that the server is running and try again.');
+        } else if (res.status === 409) {
+          showRegError('❌ This email is already registered. Please sign in or use a different email.');
+        } else if (res.errors) {
+          // Field-level validation errors from the backend
+          showFieldErrors(res.errors);
+          if (res.errors.email) {
+            showRegError('❌ ' + res.errors.email);
+          } else if (res.errors.password) {
+            showRegError('❌ ' + (Array.isArray(res.errors.password) ? res.errors.password.join(' ') : res.errors.password));
+          } else {
+            showRegError('❌ Please fix the errors above and try again.');
+          }
+        } else {
+          showRegError(res.message || 'Registration failed. Please try again.');
+        }
         return;
       }
 

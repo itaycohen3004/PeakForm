@@ -594,7 +594,21 @@ function renderExerciseBlock(ex, exIdx) {
       <div class="exercise-block-header">
         <div class="exercise-block-icon">${categoryIcon(allExercises.find(e=>e.id===ex.exercise_id)?.category||'')}</div>
         <div class="exercise-block-name">${escHtml(ex.name)}</div>
-        <button class="btn btn-ghost btn-sm" onclick="removeExercise(${exIdx})" style="color:var(--text-xmuted);margin-left:auto">✕</button>
+        <button class="btn btn-ghost btn-sm" onclick="requestAiSetSuggestion(${exIdx})"
+                id="ai-suggest-btn-${exIdx}"
+                style="margin-left:auto;color:var(--violet-l);border:1px solid rgba(139,92,246,0.3);
+                       padding:3px 8px;font-size:.75rem;border-radius:var(--radius-sm);
+                       white-space:nowrap;flex-shrink:0"
+                title="Get an AI recommendation for your next set">
+          🤖 AI Suggest
+        </button>
+        <button class="btn btn-ghost btn-sm" onclick="removeExercise(${exIdx})" style="color:var(--text-xmuted)">✕</button>
+      </div>
+      <!-- AI set suggestion result — shown directly under the title, before history -->
+      <div id="ai-set-suggestion-${exIdx}"
+           style="display:none;margin-top:6px;padding:10px 12px;
+                  background:rgba(139,92,246,0.08);border:1px solid rgba(139,92,246,0.25);
+                  border-radius:var(--radius-sm);font-size:0.82rem;color:var(--text-secondary)">
       </div>
       ${intelHtml}
       <div class="sets-table">
@@ -615,6 +629,7 @@ function renderExerciseBlock(ex, exIdx) {
     </div>
   `;
 }
+
 
 function updateSummary() {
   let totalSets = 0, totalVol = 0;
@@ -782,3 +797,127 @@ document.addEventListener('click', e => {
     dd.style.display = 'none';
   }
 });
+
+// ── AI Suggest All Sets ───────────────────────────────────────
+
+/**
+ * Called when the user clicks the AI button on an exercise block.
+ * Fetches recommendations for ALL planned sets in one request and
+ * renders them as a compact table above the intel/history banner.
+ * Re-clicking replaces the previous prediction (no duplicates).
+ */
+async function requestAiSetSuggestion(exIdx) {
+  const ex = exercises[exIdx];
+  if (!ex || !ex.exercise_id) return;
+
+  const btn    = document.getElementById(`ai-suggest-btn-${exIdx}`);
+  const dispEl = document.getElementById(`ai-set-suggestion-${exIdx}`);
+  if (!dispEl) return;
+
+  // ── Loading state ────────────────────────────────────────────
+  const origLabel = btn ? btn.innerHTML : '';
+  if (btn) {
+    btn.disabled  = true;
+    btn.innerHTML = '⏳ Generating…';
+  }
+  dispEl.style.display = 'block';
+  dispEl.innerHTML = `
+    <div style="display:flex;align-items:center;gap:8px;color:var(--text-muted);font-size:.82rem">
+      <span class="spinner" style="width:12px;height:12px;border-width:2px;border-top-color:var(--violet-l)"></span>
+      AI is analyzing your history for all ${ex.sets.filter(s => !s.is_warmup).length || ex.sets.length} sets…
+    </div>`;
+
+  const currentSets = ex.sets.map(s => ({
+    weight_kg:        s.weight_kg        ?? null,
+    reps:             s.reps             ?? null,
+    duration_seconds: s.duration_seconds ?? null,
+    is_warmup:        !!s.is_warmup,
+  }));
+
+  // Determine how many working sets the user has planned
+  const numSets = Math.max(
+    ex.sets.filter(s => !s.is_warmup).length,
+    1
+  );
+
+  try {
+    const res = await apiFetch('/api/ai/suggest-all-sets', {
+      method: 'POST',
+      body: {
+        exercise_id:  ex.exercise_id,
+        num_sets:     numSets,
+        current_sets: currentSets,
+        workout_id:   workoutId || null,
+      },
+    }, false);
+
+    if (res._error) {
+      dispEl.innerHTML = `<span style="color:var(--text-muted)">⚠️ Could not generate prediction right now. Keep going! 💪</span>`;
+      return;
+    }
+
+    // ── No history case ──────────────────────────────────────────
+    if (res.source === 'no_history') {
+      dispEl.innerHTML = `
+        <div style="display:flex;align-items:flex-start;gap:8px">
+          <span style="font-size:1rem">💡</span>
+          <span style="color:var(--text-muted);font-size:.82rem">${escHtml(res.overall_note)}</span>
+        </div>`;
+      return;
+    }
+
+    // ── Save prediction on the exercise object (survives re-renders) ─
+    ex.aiSuggestions = res.sets || [];
+    const srcIcon = res.source === 'ai' ? '🤖' : '📊';
+    const srcLabel = res.source === 'ai' ? 'AI Prediction' : 'Based on your history';
+
+    const isRW = ex.set_type === 'reps_weight';
+    const isRO = ex.set_type === 'reps_only';
+    const isTime = ex.set_type === 'time_only';
+    const isTW = ex.set_type === 'time_weight';
+
+    // Build table rows
+    const rows = (res.sets || []).map(s => {
+      let targets = [];
+      if (s.weight_kg != null) targets.push(`<strong>${s.weight_kg}kg</strong>`);
+      if (s.reps      != null) targets.push(`<strong>${s.reps} reps</strong>`);
+      if (s.seconds   != null) targets.push(`<strong>${s.seconds}s</strong>`);
+      if (s.rpe)               targets.push(`<span style="opacity:.7">RPE ${escHtml(s.rpe)}</span>`);
+      const targetStr = targets.join(' × ') || '—';
+      const note = s.note ? `<div style="font-size:.73rem;color:var(--text-muted);margin-top:2px">${escHtml(s.note)}</div>` : '';
+      return `
+        <div style="display:grid;grid-template-columns:48px 1fr;gap:6px;align-items:start;
+                    padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.05)">
+          <div style="font-size:.78rem;color:var(--text-muted);font-weight:600;padding-top:2px">
+            Set ${s.set_number}
+          </div>
+          <div>
+            <div style="font-size:.82rem;color:var(--text-primary)">${targetStr}</div>
+            ${note}
+          </div>
+        </div>`;
+    }).join('');
+
+    dispEl.innerHTML = `
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+        <div style="font-size:.78rem;font-weight:700;color:var(--violet-l);
+                    text-transform:uppercase;letter-spacing:.05em">
+          ${srcIcon} ${srcLabel}
+        </div>
+        <button onclick="document.getElementById('ai-set-suggestion-${exIdx}').style.display='none'"
+                style="background:none;border:none;cursor:pointer;color:var(--text-xmuted);
+                       font-size:.75rem;padding:0">✕ hide</button>
+      </div>
+      ${res.overall_note ? `<div style="font-size:.8rem;color:var(--text-muted);margin-bottom:8px;
+                                        padding-bottom:8px;border-bottom:1px solid rgba(255,255,255,0.08)">
+        ${escHtml(res.overall_note)}</div>` : ''}
+      ${rows}`;
+
+  } catch (err) {
+    dispEl.innerHTML = `<span style="color:var(--text-muted)">⚠️ AI prediction unavailable. Keep training! 💪</span>`;
+    console.warn('[AI suggest-all-sets] error:', err);
+  } finally {
+    if (btn) { btn.disabled = false; btn.innerHTML = origLabel; }
+  }
+}
+
