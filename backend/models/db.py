@@ -56,7 +56,7 @@ def init_db(app):
         )
         # אם היא מוצאת את הקובץ, היא מריצה אותו כדי לבנות את הכל
         if os.path.exists(schema_path):
-            with open(schema_path, "r") as f:
+            with open(schema_path, "r", encoding="utf-8") as f:
                 db.executescript(f.read())
             db.commit() # שומרים את השינויים
         close_db()
