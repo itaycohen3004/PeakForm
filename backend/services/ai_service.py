@@ -110,30 +110,46 @@ class AICoach:
         return False
 
     def _generate_with_fallback(self, prompt: str):
-        """Wrapper to handle 429 quotas by falling back to other models or a secondary API key."""
+        """Wrapper to handle quotas and server errors by falling back to other models or keys."""
         if not self.is_ready:
             raise Exception(f"AI not configured: {self._last_error}")
             
+        # Try all models for both keys (if secondary exists)
         max_attempts = len(self.available_models) * (2 if self.secondary_key else 1)
         attempts = 0
         
         while attempts < max_attempts:
             try:
+                # Always ensure client is pointing to the current model_name
+                # Note: self._client.model_name usually starts with 'models/'
                 response = self._client.generate_content(prompt)
                 return response
             except Exception as e:
-                err_str = str(e)
+                err_str = str(e).lower()
                 attempts += 1
-                if "429" in err_str or "quota" in err_str.lower() or "exhausted" in err_str.lower():
-                    print(f"[AICoach] ⚠️ Quota exceeded on {self.model_name} (Key: {self.active_key[:8]}).")
+                
+                # Broaden failover: Quotas, Server Errors (500, 503), or Overloaded
+                should_failover = any(x in err_str for x in [
+                    "429", "quota", "exhausted", "500", "502", "503", "504",
+                    "overloaded", "deadline", "unavailable", "service"
+                ])
+                
+                if should_failover:
+                    print(f"[AICoach] ⚠️ Error on {self.model_name} (Attempt {attempts}): {e}. Trying failover...")
                     if self._failover():
                         continue
                     else:
-                        raise Exception("All fallback models and API keys have exhausted their quotas.")
-                elif "403" in err_str or "400" in err_str:
-                    print(f"[AICoach] 🚨 403/400 Error: {err_str}")
-                    raise
+                        raise Exception("All fallback models and API keys have been exhausted or returned errors.")
+                elif "403" in err_str:
+                    # 403 is often regional. Let's try switching keys anyway if possible.
+                    print(f"[AICoach] 🚨 403 Permission Error. Trying key switch...")
+                    if self._failover():
+                        continue
+                    raise Exception(f"Permission error (Key: {self.active_key[:5]}...): {e}")
                 else:
+                    # For unknown errors, try next model just in case
+                    if self._failover():
+                        continue
                     raise
         raise Exception("Maximum fallback attempts reached.")
 
